@@ -32,8 +32,9 @@ import {
   pocketsStr,
   leaveSquareHandler,
 } from 'lib/nvui/chess';
-import { commands, boardCommands, addBreaks } from 'lib/nvui/command';
+import { commands, boardCommands, addBreaks, ARROW_KEYS_MULTIJUMP } from 'lib/nvui/command';
 import { scanDirectionsHandler } from 'lib/nvui/directionScan';
+import { buildBoardHelpString, buildInputHelpString } from 'lib/nvui/helpText';
 import { liveText } from 'lib/nvui/notify';
 import { renderAdvancedSettings } from 'lib/nvui/renderAdvancedSettings';
 import { selectSound, borderSound, errorSound } from 'lib/nvui/sound';
@@ -65,15 +66,23 @@ export function initNvui(ctx: AnalyseNvuiContext): void {
   });
   site.mousetrap.unbind('c');
   site.mousetrap.bind('c', () => notify.set(renderEvalAndDepth(ctrl)));
+
+  site.mousetrap.unbind('f');
+  site.mousetrap.bind('f', () => {
+    if (ctrl.data.game.variant.key !== 'racingKings') {
+      notify.set('Flipping the board');
+      setTimeout(() => ctrl.flip(), 1000);
+    }
+  });
 }
 
 export function renderNvui(ctx: AnalyseNvuiContext): VNode {
   const { ctrl, deps, notify, moveStyle, pieceStyle, prefixStyle, positionStyle, boardStyle, pageStyle } =
     ctx;
-  const d = ctrl.data,
-    style = moveStyle.get(),
-    clocks = renderClocks(ctrl, ctrl.path),
-    pockets = ctrl.node.crazy?.pockets;
+  const d = ctrl.data;
+  const style = moveStyle.get();
+  const clocks = renderClocks(ctrl, ctrl.path);
+  const pockets = ctrl.node.crazy?.pockets;
   ctrl.chessground = makeChessground(document.createElement('div'), {
     ...makeCgConfig(ctrl),
     animation: { enabled: false },
@@ -201,7 +210,7 @@ export function renderNvui(ctx: AnalyseNvuiContext): VNode {
           `x: ${i18n.site.showThreat}`,
         ].reduce(addBreaks, []),
       ),
-      boardCommands(),
+      boardCommands(ctrl.data.game.variant.key === 'crazyhouse'),
       hl('h2', i18n.nvui.inputFormCommandList),
       hl(
         'p',
@@ -254,7 +263,7 @@ function renderTouchDeviceCommands(ctx: AnalyseNvuiContext): LooseVNodes {
   ];
 }
 
-function boardEventsHook(
+export function boardEventsHook(
   { ctrl, pieceStyle, prefixStyle, moveStyle, notify }: AnalyseNvuiContext,
   el: HTMLElement,
 ): void {
@@ -262,18 +271,47 @@ function boardEventsHook(
   const $buttons = $board.find('button');
   const steps = () => ctrl.tree.getNodeList(ctrl.path);
   const fenSteps = () => steps().map(step => step.fen);
+  const announceCrazyHousePocket = (
+    ctrl: AnalyseCtrl,
+    notify: AnalyseNvuiContext['notify'],
+    index: 0 | 1,
+  ) => {
+    const pockets = ctrl.node.crazy?.pockets;
+    if (pockets) notify.set(pocketsStr(pockets[index]) || i18n.site.none);
+  };
   $buttons.on('blur', leaveSquareHandler($buttons));
   $buttons.on(
     'click',
     selectionHandler(() => plyOpponentColor(ctrl.node.ply)),
   );
   $buttons.on('keydown', (e: KeyboardEvent) => {
+    const isZh = ctrl.data.game.variant.key === 'crazyhouse';
     if (e.shiftKey && e.key.match(/^[ad]$/i)) jumpMoveOrLine(ctrl)(e);
     else if (/^x$/i.test(e.key))
       scanDirectionsHandler(ctrl.bottomColor(), ctrl.chessground.state.pieces, moveStyle.get())(e);
     else if (['o', 'l', 't'].includes(e.key)) boardCommandsHandler()(e);
-    else if (e.key.startsWith('Arrow')) arrowKeyHandler(ctrl.bottomColor(), borderSound)(e);
-    else if (e.key === 'c') lastCapturedCommandHandler(fenSteps, pieceStyle.get(), prefixStyle.get())();
+    else if (e.key.startsWith('Arrow')) {
+      // Jump ARROW_KEYS_MULTIJUMP moves back/forward with Ctrl + Arrow keys
+      if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        for (let i = 0; i < ARROW_KEYS_MULTIJUMP; i++) ctrl.navigate.prev();
+        ctrl.redraw();
+      } else if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        for (let i = 0; i < ARROW_KEYS_MULTIJUMP; i++) ctrl.navigate.next();
+        ctrl.redraw();
+      } else if (e.ctrlKey && e.key === 'ArrowDown') {
+        e.preventDefault();
+        ctrl.navigate.first();
+        ctrl.redraw();
+      } else if (e.ctrlKey && e.key === 'ArrowUp') {
+        e.preventDefault();
+        ctrl.navigate.last();
+        ctrl.redraw();
+      } else {
+        arrowKeyHandler(ctrl.bottomColor(), borderSound)(e);
+      }
+    } else if (e.key === 'c') lastCapturedCommandHandler(fenSteps, pieceStyle.get(), prefixStyle.get())();
     else if (e.key === 'i') {
       e.preventDefault();
       document.querySelector<HTMLElement>('input.move')?.focus();
@@ -283,19 +321,35 @@ function boardEventsHook(
         setTimeout(() => ctrl.flip(), 1000);
       }
     } else if (/^Digit([1-8])$/.test(e.code)) positionJumpHandler()(e);
-    else if (/^[kqrbnp]$/i.test(e.key)) pieceJumpingHandler(selectSound, errorSound)(e);
+    else if ((e.key === '9' || e.key === '0') && isZh) {
+      announceCrazyHousePocket(ctrl, notify, e.key === '9' ? 0 : 1);
+      e.preventDefault();
+    } else if (/^[kqrbnp]$/i.test(e.key)) pieceJumpingHandler(selectSound, errorSound)(e);
     else if (e.key.toLowerCase() === 'm')
       possibleMovesHandler(ctrl.turnColor(), ctrl.chessground, ctrl.data.game.variant.key, ctrl.nodeList)(e);
     else if (e.key.toLowerCase() === 'v') notify.set(renderEvalAndDepth(ctrl));
-    else if (e.key === 'G') ctrl.playBestMove();
-    else if (e.key === 'g') notify.set(renderBestMove({ ctrl, moveStyle } as AnalyseNvuiContext));
+    else if (e.shiftKey && e.key === 'H') {
+      e.preventDefault();
+      notify.set(buildBoardHelpString(boardCommands(isZh)));
+    } else if (e.key === 'G') {
+      // Play the best move for the current position, if available.
+      // Also annouce it in the notify area so screen reader users are aware of the change.
+      e.preventDefault();
+      const best = renderBestMove({ ctrl, moveStyle } as AnalyseNvuiContext);
+      if (best) {
+        ctrl.playBestMove();
+        notify.set(best);
+      } else {
+        notify.set(noEvalStr(ctrl) || 'No best move available');
+      }
+    } else if (e.key === 'g') notify.set(renderBestMove({ ctrl, moveStyle } as AnalyseNvuiContext));
   });
 }
 
 function renderEvalAndDepth(ctrl: AnalyseCtrl): string {
   if (ctrl.threatMode()) return `${evalInfo(ctrl.node.threat)} ${depthInfo(ctrl.node.threat, false)}`;
-  const evs = { client: ctrl.getNode().ceval, server: ctrl.getNode().eval },
-    bestEv = cevalView.getBestEval(ctrl);
+  const evs = { client: ctrl.getNode().ceval, server: ctrl.getNode().eval };
+  const bestEv = cevalView.getBestEval(ctrl);
   const evalStr = evalInfo(bestEv);
   return !evalStr ? noEvalStr(ctrl) : `${evalStr} ${depthInfo(evs.client, !!evs.client?.cloud)}`;
 }
@@ -324,8 +378,8 @@ function toggleLocalEvaluation(ctrl: AnalyseCtrl): void {
 function renderBestMove({ ctrl, moveStyle }: AnalyseNvuiContext): string {
   const noEvalMsg = noEvalStr(ctrl);
   if (noEvalMsg) return noEvalMsg;
-  const node = ctrl.node,
-    setup = parseFen(node.fen).unwrap();
+  const node = ctrl.node;
+  const setup = parseFen(node.fen).unwrap();
   let pvs: PvData[] = [];
   if (ctrl.threatMode() && node.threat) {
     pvs = node.threat.pvs;
@@ -380,7 +434,19 @@ function onSubmit(ctx: AnalyseNvuiContext, $input: Cash) {
   };
 }
 
-type Command = 'b' | 'p' | 's' | 'eval' | 'best' | 'prev' | 'next' | 'prev line' | 'next line' | 'pocket';
+type Command =
+  | 'b'
+  | 'p'
+  | 's'
+  | 'eval'
+  | 'best'
+  | 'prev'
+  | 'next'
+  | 'prev line'
+  | 'next line'
+  | 'pocket'
+  | 'help';
+
 type InputCommand = {
   cmd: Command;
   help: VNode | string;
@@ -458,6 +524,11 @@ const inputCommands: InputCommand[] = [
       );
     },
     invalid: ctrl => ctrl.data.game.variant.key !== 'crazyhouse',
+  },
+  {
+    cmd: 'help',
+    help: noTrans('list all available input commands'),
+    cb: ({ ctrl, notify }) => notify.set(buildInputHelpString(inputCommands.filter(c => !c.invalid?.(ctrl)))),
   },
 ];
 
@@ -542,12 +613,12 @@ const renderPlayer = (ctrl: AnalyseCtrl, player: Player): LooseVNodes =>
   player.ai ? i18n.site.aiNameLevelAiLevel('Stockfish', player.ai) : userHtml(ctrl, player);
 
 function userHtml(ctrl: AnalyseCtrl, player: Player) {
-  const d = ctrl.data,
-    user = player.user,
-    perf = user ? user.perfs[d.game.perf] : null,
-    rating = player.rating ?? perf?.rating,
-    rd = player.ratingDiff,
-    ratingDiff = rd ? (rd > 0 ? '+' + rd : rd < 0 ? '−' + -rd : '') : '';
+  const d = ctrl.data;
+  const user = player.user;
+  const perf = user ? user.perfs[d.game.perf] : null;
+  const rating = player.rating ?? perf?.rating;
+  const rd = player.ratingDiff;
+  const ratingDiff = rd ? (rd > 0 ? '+' + rd : rd < 0 ? '−' + -rd : '') : '';
   const studyPlayers = ctrl.study && renderStudyPlayer(ctrl, player.color);
   return user
     ? hl('span', [

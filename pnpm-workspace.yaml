@@ -21,6 +21,7 @@ ignoredOptionalDependencies:
   - '@ox*/*-sunos-*'
 allowBuilds:
   esbuild: true
+  protobufjs: false
 overrides:
   fast-uri: ^3.1.7
   undici: ^8.10.2
@@ -29,4 +30,3 @@ patchedDependencies:
 minimumReleaseAgeExclude:
   - '@lichess-org/*'
   - chessops@0.15.1
-  - tsx@4.23.5
