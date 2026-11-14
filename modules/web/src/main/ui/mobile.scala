@@ -1,13 +1,14 @@
 package lila.web
 package ui
 
-import play.api.mvc.RequestHeader
+import play.api.libs.json.Json
 
+import lila.common.Json.given
 import lila.core.i18n.{ I18nKey as trans, Translate }
 import lila.ui.*
 import lila.ui.ScalatagsTemplate.{ *, given }
 
-def mobileRedirect(using req: RequestHeader)(using Translate) =
+def mobileRedirect(using req: Req)(using Translate) =
   val callbackUrl = "org.lichess.mobile://login-callback" + req.rawQueryString.nonEmptyOption.so("?" + _)
   Page(trans.app.returningToApp.txt()).i18n(_.app):
     main(cls := "page-small box box-pad")(
@@ -28,7 +29,7 @@ def mobile(helpers: Helpers)(renderedCmsPage: Frag)(using Translate) =
     <img alt="${trans.app.downloadOnAppleAppStore.txt()}"
     width="172"
     height="50"
-    src="${assetUrl("images/mobile/apple-store.svg")}" />
+    src="${assetPath("images/mobile/apple-store.svg")}" />
   </a>
   """
 
@@ -39,7 +40,7 @@ def mobile(helpers: Helpers)(renderedCmsPage: Frag)(using Translate) =
     <img alt="${trans.app.downloadOnGooglePlay.txt()}"
     width="172"
     height="50"
-    src="${assetUrl("images/mobile/google-play.webp")}" />
+    src="${assetPath("images/mobile/google-play.webp")}" />
   </a>
   """
 
@@ -50,14 +51,38 @@ def mobile(helpers: Helpers)(renderedCmsPage: Frag)(using Translate) =
     <img alt="${trans.app.downloadOnFdroid.txt()}"
     width="172"
     height="50"
-    src="${assetUrl("images/mobile/fdroid.svg")}" />
+    src="${assetPath("images/mobile/fdroid.svg")}" />
   </a>
   """
+
+  val appStructuredData = lila.ui.bits.structuredData("MobileApplication"):
+    def storeOffer(name: String, url: Url) =
+      Json.obj("@type" -> "Offer", "name" -> name, "url" -> url, "price" -> 0)
+    Json.obj(
+      "name" -> "Lichess",
+      "operatingSystem" -> "Android, iOS",
+      "applicationCategory" -> "GameApplication",
+      "url" -> routeUrl(routes.Main.app),
+      "releaseNotes" -> "https://github.com/lichess-org/mobile/releases",
+      "screenshot" -> assetPath("images/mobile/lichess-mobile-screen.webp"),
+      "offers" -> List(
+        storeOffer("Google Play", StaticContent.mobileAndroidUrl),
+        storeOffer("F-Droid", StaticContent.mobileFdroidUrl),
+        storeOffer("App Store", StaticContent.mobileIosUrl)
+      ),
+      // weighted average of the App Store and Google Play ratings, as of 2026-10-08
+      "aggregateRating" -> Json.obj(
+        "@type" -> "AggregateRating",
+        "ratingValue" -> 4.2,
+        "ratingCount" -> 2895
+      )
+    )
 
   Page(trans.app.lichessMobileApp.txt())
     .i18n(_.app)
     .js(Esm("bits.qrcode"))
     .css("bits.mobile")
+    .headAppend(appStructuredData)
     .hrefLangs(lila.ui.LangPath(routes.Main.app)):
       main(
         div(cls := "mobile page-small box box-pad")(
@@ -83,7 +108,7 @@ def mobile(helpers: Helpers)(renderedCmsPage: Frag)(using Translate) =
                   widthA := "358",
                   heightA := "766",
                   cls := "mobile-playing",
-                  src := assetUrl("images/mobile/lichess-mobile-screen.webp"),
+                  src := assetPath("images/mobile/lichess-mobile-screen.webp"),
                   alt := trans.app.lichessMobileScreen.txt()
                 )
             )

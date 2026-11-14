@@ -17,7 +17,7 @@ class AnalyserTest extends munit.FunSuite:
     assert(grave("kyskys"))
     assert(grave("kill you motherfucker"))
     assert(grave("kill your father"))
-    assert(grave("rope"))
+    assert(grave("suicidate"))
 
   test("find one bad word"):
     assertEquals(find("cheater"), List("cheater"))
@@ -53,7 +53,7 @@ class AnalyserTest extends munit.FunSuite:
     assertEquals(find("Epstein Trump criminal heretic murderer felon traitor liar"), Nil)
 
   test("find badly spelled words"):
-    assertEquals(find("cheatedd cheaterr"), List("cheatedd", "cheaterr"))
+    assertEquals(find("cheatedd cheaterr chiter"), List("cheatedd", "cheaterr", "chiter"))
     assertEquals(find("kil u killl u pnis pusy quer"), List("kil u", "killl u", "pnis", "pusy", "quer"))
     assertEquals(find("foo ashole bar fuks"), List("ashole", "fuks"))
     assertEquals(find("faaaaaaaaagg faaaagot fag"), List("faaaaaaaaagg", "faaaagot", "fag"))
@@ -105,13 +105,25 @@ class AnalyserTest extends munit.FunSuite:
     assertEquals(find("blaireau connard f2p fdp"), List("blaireau", "connard", "f2p", "fdp"))
 
   test("german inflection"):
-    assertEquals(find("feigling feiglinge"), List("feigling", "feiglinge"))
+    assertEquals(find("feigling feiglinge hs"), List("feigling", "feiglinge", "hs"))
 
   test("hindi inflection"):
     assertEquals(find("laude krle"), List("laude krle"))
 
+  test("portuguese"):
+    assertEquals(find("lixo"), List("lixo"))
+
   test("spanish inflection"):
-    assertEquals(find("hdp hdtpm madre chupapollas"), List("hdp", "hdtpm", "madre", "chupapollas"))
+    assertEquals(
+      find("hdp hdtpm madre chupapollas tonto"),
+      List("hdp", "hdtpm", "madre", "chupapollas", "tonto")
+    )
+
+  test("arabizi"):
+    assertEquals(
+      find("kiss immak kosomak kess ekhtak sharmouta khara"),
+      List("kiss immak", "kosomak", "kess ekhtak", "sharmouta", "khara")
+    )
 
   test("russian chars"):
     assertEquals(find("sеx"), List("sex"))

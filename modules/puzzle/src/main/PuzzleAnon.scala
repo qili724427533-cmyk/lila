@@ -22,23 +22,36 @@ final class PuzzleAnon(
       .mon(lila.mon.puzzle.selector.anon.time)
       .addEffect:
         _.foreach: puzzle =>
-          lila.mon.puzzle.selector.anon.vote.record(100 + math.round(puzzle.vote * 100))
+          if puzzle.vote < 0 then logger.warn(s"Anon puzzle with negative vote ${puzzle.id} ${puzzle.vote}")
+          else lila.mon.puzzle.selector.anon.vote.record(100 + math.round(puzzle.vote * 100))
 
   private def selectWithColor(color: Color)(puzzles: Vector[Puzzle]): Option[Puzzle] =
     def nextTry(attempts: Int): Option[Puzzle] =
       if attempts < 10 then
         ThreadLocalRandom.oneOf(puzzles).filter(_.color == color).orElse(nextTry(attempts + 1))
-      else ThreadLocalRandom.oneOf(puzzles.filter(_.color == color))
+      else ThreadLocalRandom.oneOf(puzzles.view.filter(_.color == color).take(30).toVector)
     nextTry(1)
 
-  def getBatchFor(angle: PuzzleAngle, diff: PuzzleDifficulty, nb: Int): Fu[Vector[Puzzle]] =
-    pool.get(angle -> diff).map(_.take(nb)).mon(lila.mon.puzzle.selector.anon.batch(nb))
+  def getBatchFor(
+      angle: PuzzleAngle,
+      diff: PuzzleDifficulty,
+      nb: Int,
+      color: Option[Color]
+  ): Fu[Vector[Puzzle]] =
+    pool
+      .get(angle -> diff)
+      .map: puzzles =>
+        color
+          .fold(puzzles): c =>
+            puzzles.filter(_.color == c)
+          .take(nb)
+      .mon(lila.mon.puzzle.selector.anon.batch(nb))
 
   private val poolSize = 150
 
   private val pool =
     cacheApi[(PuzzleAngle, PuzzleDifficulty), Vector[Puzzle]](
-      initialCapacity = 64,
+      initialCapacity = 128,
       name = "puzzle.byTheme.anon"
     ):
       _.expireAfterWrite(1.minute).buildAsyncFuture: (angle, difficulty) =>

@@ -1,15 +1,15 @@
 package lila.security
 
 import play.api.i18n.Lang
-import play.api.mvc.{ RequestHeader, Session, Cookie }
+import play.api.mvc.{ Cookie, Session }
 import scalatags.Text.all.*
 
 import lila.core.config.*
 import lila.core.i18n.I18nKey.emails as trans
-import lila.mailer.Mailer
-import lila.user.{ User, UserRepo }
 import lila.core.net.IpAddress
+import lila.mailer.Mailer
 import lila.memo.RateLimit
+import lila.user.{ User, UserRepo }
 
 final class PasswordReset(
     mailer: Mailer,
@@ -53,8 +53,8 @@ ${trans.common_linkNotWorking.txt()}"""),
         case _: reactivemongo.api.bson.exceptions.BSONValueNotFoundException => none
 
   val limiter: RateLimit.RateLimiter[(EmailAddress, IpAddress)] = RateLimit.combine(
-    RateLimit[EmailAddress](credits = 3, duration = 1.day, key = "password.reset.email"),
-    RateLimit[IpAddress](credits = 20, duration = 1.day, key = "password.reset.ip")
+    RateLimit[EmailAddress](credits = 3, duration = 1.day, limiterKey = "password.reset.email"),
+    RateLimit[IpAddress](credits = 20, duration = 1.day, limiterKey = "password.reset.ip")
   )
 
   private val tokener = StringToken.withLifetimeAndFutureValue[UserId](
@@ -73,9 +73,9 @@ object PasswordReset:
 
     private val name = "email_pw_reset"
 
-    def get(using req: RequestHeader): Option[EmailAddress] =
+    def get(using req: Req): Option[EmailAddress] =
       EmailAddress.from(req.session.get(name))
 
-    def set(lilaCookie: LilaCookie, email: EmailAddress)(using RequestHeader): Cookie =
+    def set(lilaCookie: LilaCookie, email: EmailAddress)(using Req): Cookie =
       lilaCookie.withSession(remember = false): _ =>
         Session.emptyCookie + (name -> email.value)

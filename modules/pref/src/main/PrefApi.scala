@@ -1,7 +1,6 @@
 package lila.pref
 
 import chess.{ ByColor, Color }
-import play.api.mvc.RequestHeader
 import reactivemongo.api.bson.*
 
 import lila.db.dsl.{ *, given }
@@ -23,22 +22,17 @@ final class PrefApi(
   private val cache = cacheApi[UserId, Option[Pref]](200_000, "pref.fetchPref"):
     _.expireAfterAccess(10.minutes).buildAsyncFuture(fetchPref)
 
-  def saveTag(user: User, tag: Pref.Tag.type => String, value: Boolean) =
-    for _ <-
-        if value
-        then coll.update.one(bid(user.id), set(s"tags.${tag(Pref.Tag)}" -> "1"), upsert = true)
-        else coll.update.one(bid(user.id), unset(s"tags.${tag(Pref.Tag)}"))
-    yield cache.invalidate(user.id)
+  def setDgt(user: User) = setPref(user, _.copy(hasDgt = true))
 
   def get(user: User): Fu[Pref] = cache.get(user.id).dmap(_ | Pref.create(user))
 
   def get[A](userId: UserId, pref: Pref => A): Fu[A] =
     cache.get(userId).dmap(p => pref(p | Pref.default))
 
-  def getWithReq(user: User)(using RequestHeader): Fu[Pref] =
+  def getWithReq(user: User)(using Req): Fu[Pref] =
     get(user).dmap(RequestPref.queryParamOverride)
 
-  def getWithReq(user: Option[User])(using RequestHeader): Fu[Pref] = user match
+  def getWithReq(user: Option[User])(using Req): Fu[Pref] = user match
     case Some(u) => get(u).dmap(RequestPref.queryParamOverride)
     case None => fuccess(RequestPref.fromRequest)
 
@@ -108,6 +102,6 @@ final class PrefApi(
     )
   )
 
-  def saveNewUserPrefs(user: User)(using RequestHeader): Funit =
+  def saveNewUserPrefs(user: User)(using Req): Funit =
     val reqPref = RequestPref.fromRequest
     (reqPref != Pref.default).so(setPref(user, reqPref.copy(id = user.id)))

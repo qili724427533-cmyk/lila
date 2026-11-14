@@ -2,7 +2,6 @@ package lila.api
 
 import chess.format.Fen
 import play.api.libs.json.*
-import play.api.mvc.RequestHeader
 import reactivemongo.api.bson.*
 import scalalib.Json.given
 import scalalib.paginator.Paginator
@@ -19,7 +18,7 @@ final private[api] class GameApi(
     net: NetConfig,
     apiToken: Secret,
     gameRepo: lila.game.GameRepo,
-    gameCache: lila.game.Cached,
+    playingUsers: lila.round.PlayingUsers,
     analysisRepo: lila.analyse.AnalysisRepo,
     crosstableApi: lila.game.CrosstableApi,
     gameOpening: lila.game.GameOpening
@@ -27,7 +26,7 @@ final private[api] class GameApi(
 
   import GameApi.WithFlags
 
-  def one(id: GameId)(using RequestHeader): Fu[Option[JsObject]] =
+  def one(id: GameId)(using Req): Fu[Option[JsObject]] =
     gameRepo
       .game(id)
       .flatMapz: g =>
@@ -65,7 +64,7 @@ final private[api] class GameApi(
         sort = bdoc(G.createdAt -> -1),
         _.sec
       ).withNbResults(
-        if ~playing then gameCache.nbPlaying(users._1.id)
+        if ~playing then playingUsers.nbPlayingRealtime(users._1.id)
         else crosstableApi(users._1.id, users._2.id).dmap(_.nbGames)
       ),
       currentPage = page,
@@ -206,7 +205,7 @@ object GameApi:
   ):
     def applyToken(validToken: String) = copy(blurs = token.has(validToken))
 
-  def requestFlags(using RequestHeader) =
+  def requestFlags(using Req) =
     import lila.common.HTTPRequest.*
     WithFlags(
       analysis = queryStringBool("with_analysis"),

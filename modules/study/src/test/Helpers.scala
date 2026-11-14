@@ -1,8 +1,8 @@
 package lila.study
 
+import alleycats.Zero
 import chess.format.pgn.{ PgnStr, Tags }
 import monocle.syntax.all.*
-import alleycats.Zero
 
 import lila.tree.Root
 
@@ -27,8 +27,8 @@ trait EitherAssertions extends munit.Assertions:
 
 object Helpers:
 
-  def rootToPgn(root: Root, tags: Tags = Tags.empty): PgnStr = PgnDump
-    .rootToPgn(root, tags)(using PgnDump.withoutOrientation)
+  def rootToPgn(root: Root, tags: Tags = Tags.empty, owner: Option[UserId] = none): PgnStr = PgnDump
+    .rootToPgn(root, tags, owner)(using PgnDump.withoutOrientation)
     .render
 
   extension (root: Root)

@@ -64,33 +64,33 @@ final class PasswordHasher(
 
   import lila.core.net.IpAddress
   import lila.memo.RateLimit
-  import play.api.mvc.RequestHeader
+
   import lila.core.config
   import lila.common.HTTPRequest
 
   private lazy val rateLimitPerIP = RateLimit[IpAddress](
     credits = 300,
     duration = 10.minutes,
-    key = "password.hashes.ip"
+    limiterKey = "password.hashes.ip"
   )
 
   private lazy val rateLimitPerUser = RateLimit[UserIdOrEmail](
     credits = 20,
     duration = 15.minutes,
-    key = "password.hashes.user"
+    limiterKey = "password.hashes.user"
   )
 
   private lazy val rateLimitGlobal = RateLimit[String](
     credits = 12 * 10 * 60, // max out 12 cores for 60 seconds
     duration = 1.minute,
-    key = "password.hashes.global"
+    limiterKey = "password.hashes.global"
   )
 
   def rateLimit[A](
       default: => Fu[A],
       enforce: config.RateLimit,
       ipCost: Int
-  )(id: UserIdOrEmail, req: RequestHeader)(run: lila.memo.RateLimit.Charge => Fu[A]): Fu[A] =
+  )(id: UserIdOrEmail, req: Req)(run: lila.memo.RateLimit.Charge => Fu[A]): Fu[A] =
     if enforce.yes then
       val ip = HTTPRequest.ipAddress(req)
       rateLimitPerUser.chargeable(id, default, cost = 1, msg = s"IP: $ip"): chargeUser =>

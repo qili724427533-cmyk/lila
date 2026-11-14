@@ -1,13 +1,11 @@
 package lila.security
 
-import play.api.mvc.RequestHeader
 import scalalib.ThreadLocalRandom
 
-import lila.common.{ Bus, HTTPRequest }
+import lila.common.{ Bus, HTTPRequest, LilaFuture }
 import lila.core.lilaism.LilaNoStackTrace
 import lila.core.net.IpAddress
 import lila.core.security.UserSignup
-import lila.common.LilaFuture
 
 final class GarbageCollector(
     userLogins: UserLoginsApi,
@@ -26,13 +24,13 @@ final class GarbageCollector(
       user: User,
       ip: IpAddress,
       email: EmailAddress,
-      req: RequestHeader,
+      req: Req,
       quickly: Boolean
   ):
     override def toString = s"${user.username} $ip ${email.value} $req"
 
   // User just signed up and doesn't have security data yet, so wait a bit
-  def delay(user: User, email: EmailAddress, req: RequestHeader, quickly: Boolean): Unit =
+  def delay(user: User, email: EmailAddress, req: Req, quickly: Boolean): Unit =
     if user.createdAt.isAfter(nowInstant.minusDays(3)) then
       val ip = HTTPRequest.ipAddress(req)
       scheduler.scheduleOnce(6.seconds):

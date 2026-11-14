@@ -18,11 +18,12 @@ object Lilaism extends LilaLibraryExtensions:
     RoomId
   }
   export lila.core.userId.{ UserId, UserName, UserStr, MyId, UserIdOf }
-  export lila.core.data.{ Markdown, Html, JsonStr, Url }
+  export lila.core.data.{ Markdown, Html, JsonStr, Url, Path }
   export lila.core.perf.{ PerfKey, Perf }
   export lila.core.email.EmailAddress
   export lila.core.user.{ User, Me }
   export lila.core.game.{ Game, Pov }
+  export play.api.mvc.RequestHeader as Req
 
   def some[A](a: A): Option[A] = Some(a)
 

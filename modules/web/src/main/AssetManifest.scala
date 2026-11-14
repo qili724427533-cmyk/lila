@@ -1,7 +1,8 @@
 package lila.web
 
+import play.api.libs.json.{ JsObject, JsString, JsValue, Json }
+
 import java.nio.file.Files
-import play.api.libs.json.{ JsObject, JsValue, Json, JsString }
 
 import lila.common.config.GetRelativeFile
 
@@ -25,7 +26,7 @@ final class AssetManifest(getFile: GetRelativeFile):
       if current.isAfter(maps.modified) then
         maps = readMaps(Json.parse(Files.newInputStream(pathname)))
         lila.common.Bus.pub(AssetManifestUpdate)
-    catch case e: Throwable => lila.log.system.warn(s"AssetManifest error reading $pathname", e)
+    catch case e: Exception => lila.log.system.warn(s"AssetManifest error reading $pathname", e)
 
   private val jsKeyRe = """^(?!lib\.)(\S+)\.([A-Z0-9]{8})\.js""".r
 
@@ -105,7 +106,7 @@ final class AssetManifest(getFile: GetRelativeFile):
           if !key.startsWith("i18n/") then none
           else
             val dot = key.lastIndexOf('.')
-            if dot > 0 then js.get(key.slice(0, dot) + ".en-GB")
+            if dot > 0 then js.get(s"${key.slice(0, dot)}.en-GB")
             else none
 
 private case object AssetManifestUpdate

@@ -1,11 +1,16 @@
 package lila.web
 
 import com.softwaremill.macwire.*
+import play.api.Configuration
 import play.api.libs.ws.StandaloneWSClient
+
+import lila.common.config.given
+import lila.core.data.Strings
+import lila.memo.SettingStore.Strings.given
 
 @Module
 final class Env(
-    appConfig: play.api.Configuration,
+    appConfig: Configuration,
     cacheApi: lila.memo.CacheApi,
     settingStore: lila.memo.SettingStore.Builder,
     ws: StandaloneWSClient,
@@ -18,7 +23,7 @@ final class Env(
   export net.baseUrl
 
   val analyseEndpoints = WebConfig.analyseEndpoints(appConfig)
-  lazy val lilaVersion = WebConfig.lilaVersion(appConfig)
+  lazy val lilaVersion = WebConfig.LilaVersion.read(appConfig)
 
   val manifest = wire[AssetManifest]
 
@@ -43,19 +48,15 @@ final class Env(
 
   val lichobileAnnounceApi = wire[LichobileAnnounceApi]
 
+  val playerCounter = wire[PlayerCounter]
+
   AnnounceApi.setupPeriodicUpdate()
   PrometheusReporter.setupPeriodicMonitor()
 
   object settings:
-    import lila.core.data.{ Strings, UserIds }
-    import lila.memo.SettingStore.Strings.given
+    import lila.core.data.UserIds
     import lila.memo.SettingStore.UserIds.given
 
-    val apiTimeline = settingStore[Int](
-      "apiTimelineEntries",
-      default = 10,
-      text = "API timeline entries to serve".some
-    )
     val noDelaySecret = settingStore[Strings](
       "noDelaySecrets",
       default = Strings(Nil),
@@ -73,3 +74,33 @@ final class Env(
       default = 300,
       text = "Opening explorer games per second".some
     )
+
+  val webSocketConfig = WebSocketConfig(
+    mainDomains = settingStore[Strings](
+      "socketMainDomains",
+      default = Strings(appConfig.get("net.socket.domains")),
+      text = "Main websocket domains".some
+    ),
+    altDomains = settingStore[Strings](
+      "socketAltDomains",
+      default = Strings(appConfig.get("net.socket.alts")),
+      text = "Alternative websocket domains".some
+    ),
+    csps = settingStore[Strings](
+      "socketCspDomains",
+      default = Strings(appConfig.get("net.socket.csps")),
+      text = "Websocket domains for Content Security Policy".some
+    )
+  )
+
+  object lichobileDisables:
+    import lila.core.i18n.{ I18nKey, Translate }
+
+    val setting = settingStore[Strings](
+      "lichobileDisables",
+      default = Strings(List("anonPuzzle")),
+      text = "Parts of the websites that are disabled for lichobile".some
+    )
+    def anonPuzzle(using Translate): Option[String] =
+      Option.when(setting.get().value.contains("anonPuzzle")):
+        I18nKey.msg.oldAppNoLongerSupportsPuzzles.txt("lichess.org/app")

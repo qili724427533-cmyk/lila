@@ -1,11 +1,11 @@
 package lila.streamer
 
-import play.api.mvc.{ RequestHeader, DiscardingCookie }
 import com.github.blemale.scaffeine.Scaffeine
-import play.api.libs.ws.StandaloneWSClient
+import play.api.libs.json.*
 import play.api.libs.ws.DefaultBodyWritables.*
 import play.api.libs.ws.JsonBodyReadables.*
-import play.api.libs.json.*
+import play.api.libs.ws.StandaloneWSClient
+import play.api.mvc.DiscardingCookie
 
 /* let lichess users associate their twitch/youtube accounts */
 final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twitchCfg: TwitchConfig)(using
@@ -20,7 +20,7 @@ final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twi
 
     def name(platform: Platform) = s"${platform}_oauth_state"
 
-    def get(platform: Platform)(using req: RequestHeader) =
+    def get(platform: Platform)(using req: Req) =
       req.cookies.get(name(platform)).map(_.value)
 
     def unset(platform: Platform) = DiscardingCookie(name(platform), path = "/")
@@ -32,7 +32,7 @@ final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twi
     def put(state: State, idsMap: Map[String, String])(using me: Me) =
       if idsMap.nonEmpty then cache.put(state, (me.userId, idsMap))
 
-    def find(channelId: String)(using me: Me)(using RequestHeader): Option[(UserId, Map[String, String])] =
+    def find(channelId: String)(using me: Me)(using Req): Option[(UserId, Map[String, String])] =
       cookie
         .get("youtube")
         .flatMap(cache.getIfPresent)
@@ -74,7 +74,7 @@ final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twi
     ws.url(s"${twitchCfg.authEndpoint}/token")
       .post(body)
       .flatMap: rsp =>
-        if rsp.status != 200 then fufail(s"twitch.codeForUser ${lila.log.http(rsp.status, rsp.body)}}")
+        if rsp.status != 200 then fufail(s"twitch.codeForUser ${lila.log.http(rsp)}}")
         else
           val accessToken = (rsp.body[JsValue] \ "access_token").as[String]
           ws.url(s"${twitchCfg.helixEndpoint}/users")
@@ -85,7 +85,7 @@ final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twi
             .get()
             .flatMap: userRsp =>
               if userRsp.status != 200
-              then fufail(s"twitch.codeForUser ${lila.log.http(rsp.status, rsp.body)}}")
+              then fufail(s"twitch.codeForUser ${lila.log.http(rsp)}}")
               else
                 userRsp
                   .body[JsValue]
@@ -106,7 +106,7 @@ final class StreamerOauth(ws: StandaloneWSClient, youtubeCfg: YoutubeConfig, twi
       .post(body)
       .flatMap: rsp =>
         if rsp.status != 200 then
-          fufail(s"Youtube token exchange failed: ${rsp.status} ${lila.log.http(rsp.status, rsp.body)}")
+          fufail(s"Youtube token exchange failed: ${rsp.status} ${lila.log.http(rsp)}")
         else
           val accessToken = (rsp.body[JsValue] \ "access_token").as[String]
           ws.url(s"${youtubeCfg.v3Endpoint}/channels")

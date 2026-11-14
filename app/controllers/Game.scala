@@ -1,5 +1,6 @@
 package controllers
 
+import chess.json.Json.given
 import play.api.mvc.*
 
 import java.time.format.DateTimeFormatter
@@ -7,6 +8,7 @@ import java.time.format.DateTimeFormatter
 import lila.api.GameApiV2.*
 import lila.app.{ *, given }
 import lila.core.id.GameAnyId
+import lila.game.PgnDump.requestPgnFlags
 
 final class Game(env: Env, apiC: => Api) extends LilaController(env):
 
@@ -28,24 +30,26 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
       else Redirect(routes.Round.watcher(game.id, game.naturalOrientation))
   }
 
-  def exportOne(id: GameAnyId) = AnonOrScoped():
-    exportGame(id.gameId)
-
-  private[controllers] def exportGame(gameId: GameId)(using ctx: Context): Fu[Result] =
-    given Option[Me] = ctx.isFullAuth.so(ctx.me)
-    Found(env.round.proxyRepo.gameIfPresentOrFetch(gameId)): game =>
-      val config = OneConfig(
-        format = Format.byRequest,
-        imported = getBool("imported"),
-        flags = requestPgnFlags(extended = true)
-      )
-      for
-        content <- env.api.gameApiV2.exportOne(game, config)
-        filename <- env.api.gameApiV2.filename(game, config.format)
-      yield Ok(content)
-        .asAttachment(filename)
-        .withHeaders(headersForApiOrApp*)
-        .as(gameContentType(config))
+  def exportOne(id: GameAnyId) = OpenOrScoped(): ctx ?=>
+    if getBool("divisionOnly") then JsonOptionOk(env.game.divider.fetchAndDivide(id.gameId))
+    else
+      Found(env.round.proxyRepo.gameIfPresentOrFetch(id.gameId)): game =>
+        given Option[Me] = ctx.isFullAuth.so(ctx.me)
+        val config = OneConfig(
+          format = Format.byRequest,
+          imported = getBool("imported"),
+          flags =
+            requestPgnFlags(extended = ctx.isAuth || game.isStrongOrRecent, delayMoves = delayMovesFromReq)
+        )
+        for
+          content <- env.api.gameApiV2.exportOne(game, config)
+          filename <- env.api.gameApiV2.filename(game, config.format)
+        yield Ok(content)
+          .asAttachment(filename)
+          .withHeaders(headersForApiOrApp*)
+          .as(config.contentType)
+          .publicCache(Option.when(ctx.isAnon)(if game.playable then 10.seconds else 1.day))
+          .varyAccept
 
   def exportByUser(username: UserStr) = AuthOrScoped()(handleExport(username))
   def apiExportByUser(username: UserStr) = OpenOrScoped()(handleExport(username))
@@ -74,10 +78,10 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
                     until = getTimestamp("until"),
                     max = getIntAs[Max]("max").map(_.atLeast(1)),
                     rated = getBoolOpt("rated"),
-                    perfKey = get("perfType").orZero.split(",").flatMap { PerfKey(_) }.toSet,
+                    perfKey = get("perfType").orZero.split(",").flatMap(PerfKey(_)).toSet,
                     color = getColor(),
                     analysed = getBoolOpt("analysed"),
-                    flags = requestPgnFlags(extended = false),
+                    flags = requestPgnFlags(extended = false, delayMoves = delayMovesFromReq),
                     sort =
                       if get("sort").has("dateAsc") then GameSort.DateAsc
                       else GameSort.DateDesc,
@@ -88,7 +92,7 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
                   if ctx.is(UserId.explorer) then
                     Ok.chunked(env.api.gameApiV2.exportByUser(config))
                       .noProxyBuffer
-                      .as(gameContentType(config))
+                      .as(config.contentType)
                   else
                     apiC
                       .GlobalConcurrencyLimitPerIpAndUserOption(user.some)(
@@ -97,7 +101,7 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
                         Ok.chunked(source)
                           .asAttachmentStream:
                             s"lichess_${user.username}_${fileDate}.${format.toString.toLowerCase}"
-                          .as(gameContentType(config))
+                          .as(config.contentType)
 
   private def fileDate = DateTimeFormatter.ofPattern("yyyy-MM-dd").print(nowInstant)
 
@@ -106,15 +110,13 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
     val config = ImportedConfig(
       user = me.userId,
       annotated = annotated,
-      flags = requestPgnFlags(extended = annotated)
+      flags = requestPgnFlags(extended = annotated, delayMoves = delayMovesFromReq)
         .copy(literate = getBoolOpt("literate") | annotated)
     )
     apiC.GlobalConcurrencyLimitPerIpAndUserOption(me.some)(
       env.api.gameApiV2.exportUserImportedGames(config)
     ): source =>
-      Ok.chunked(source)
-        .asAttachmentStream(s"lichess_${me.username}_$fileDate.imported.pgn")
-        .as(pgnContentType)
+      Ok.chunked(source).as(PGN).asAttachmentStream(s"lichess_${me.username}_$fileDate.imported.pgn")
   }
 
   def apiExportByUserBookmarks() = Scoped() { ctx ?=> me ?=>
@@ -124,7 +126,7 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
       since = getTimestamp("since"),
       until = getTimestamp("until"),
       max = getIntAs[Max]("max").map(_.atLeast(1)),
-      flags = requestPgnFlags(extended = false),
+      flags = requestPgnFlags(extended = false, delayMoves = delayMovesFromReq),
       sort = if get("sort").has("dateAsc") then GameSort.DateAsc else GameSort.DateDesc,
       perSecond = MaxPerSecond(30)
     )
@@ -134,25 +136,25 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
       Ok.chunked(source)
         .asAttachmentStream:
           s"lichess_${me.username}_$fileDate.bookmarks.${config.format.toString.toLowerCase}"
-        .as(gameContentType(config))
+        .as(config.contentType)
   }
 
   def exportByIds = AnonOrScopedBody(parse.tolerantText)(): ctx ?=>
-    val (limit, perSec) = if ctx.me.exists(_.isVerifiedOrChallengeAdmin) then (600, 100) else (300, 30)
+    val (max, perSec) = if ctx.me.exists(_.isVerifiedOrChallengeAdmin) then (600, 100) else (300, 30)
     val config = ByIdsConfig(
-      ids = GameId.from(ctx.body.body.split(',').view.take(limit).toSeq),
+      ids = GameId.from(ctx.body.body.split(',').view.take(max).toSeq),
       format = Format.byRequest,
-      flags = requestPgnFlags(extended = false),
+      flags = requestPgnFlags(extended = false, delayMoves = delayMovesFromReq),
       perSecond = MaxPerSecond(perSec),
       playerFile = get("players")
     )
-    apiC.GlobalConcurrencyLimitPerIP
+    limit.GlobalConcurrencyLimitPerIP
       .download(req.ipAddress)(env.api.gameApiV2.exportByIds(config)): source =>
-        Ok.chunked(source).as(gameContentType(config)).noProxyBuffer
+        Ok.chunked(source).as(config.contentType).noProxyBuffer
 
   def gamePlayersFiltersFromReq(using
       me: Option[Me],
-      req: RequestHeader
+      req: Req
   ): Either[String, Fu[GamePlayersConfig]] =
     for
       vs <- Right(getUserStr("vs"))
@@ -162,37 +164,10 @@ final class Game(env: Env, apiC: => Api) extends LilaController(env):
       lostBy <- Right(getUserStr("lostBy")).filterOrElse(valid, "Invalid lostBy")
     yield vs.so(meOrFetch).map(GamePlayersConfig(_, wonBy.map(_.id), lostBy.map(_.id)))
 
-  private[controllers] def requestPgnFlags(extended: Boolean)(using RequestHeader, Option[Me]) =
-    lila.game.PgnDump.WithFlags(
-      moves = getBoolOpt("moves") | true,
-      tags = getBoolOpt("tags") | true,
-      clocks = getBoolOpt("clocks") | extended,
-      evals = getBoolOpt("evals") | extended,
-      opening = (getBoolOpt("opening"), extended) match
-        case (None, extended) => extended.option(true)
-        case (Some(false), _) => none
-        case (Some(true), extended) => extended.some,
-      literate = getBool("literate"),
-      pgnInJson = getBool("pgnInJson"),
-      delayMoves = delayMovesFromReq,
-      lastFen = getBool("lastFen"),
-      accuracy = getBool("accuracy"),
-      division = getBoolOpt("division") | extended,
-      bookmark = getBool("withBookmarked")
-    )
-
-  private[controllers] def delayMovesFromReq(using RequestHeader)(using me: Option[Me]) =
+  private[controllers] def delayMovesFromReq(using Req)(using me: Option[Me]) =
     val trusted = get("key").exists(env.web.settings.noDelaySecret.get().value.contains) ||
       me.exists(_.is(UserId.t3))
     !trusted
-
-  private[controllers] def gameContentType(config: Config) =
-    config.format match
-      case Format.PGN => pgnContentType
-      case Format.JSON =>
-        config match
-          case _: OneConfig => JSON
-          case _ => ndJson.contentType
 
   private[controllers] def preloadUsers(game: lila.core.game.Game): Funit =
     env.user.lightUserApi.preloadMany(game.userIds)

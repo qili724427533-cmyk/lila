@@ -30,7 +30,7 @@ final class Opening(env: Env) extends LilaController(env):
       RequireAuthIf((moves.sizeIs > 10 && req.client.isCrawler) || (moves.sizeIs > 6 && proxy.couldBeEnum)):
         limit.enumeration.opening(rateLimited):
           val cost = if ctx.isAuth then 1 else if UserAgentParser.trust.isSuspicious then 5 else 2
-          ipRateLimit(rateLimited, cost = cost):
+          ipRateLimit.knownProxy(rateLimited, cost = cost):
             env.opening.api
               .lookup(queryFromUrl(key, moves.some), proxy)
               .flatMap:
@@ -52,7 +52,7 @@ final class Opening(env: Env) extends LilaController(env):
   def config(thenTo: String) = OpenBody:
     NoCrawlersRes:
       val redir = Redirect:
-        HTTPRequest.referer(ctx.req) | {
+        HTTPRequest.referer | {
           if thenTo.isEmpty || thenTo == "index" then routes.Opening.index().url
           else if thenTo.startsWith("q:") then routes.Opening.index(thenTo.drop(2).some).url
           else routes.Opening.byKeyAndMoves(thenTo, "").url

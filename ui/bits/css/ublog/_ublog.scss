@@ -80,11 +80,11 @@
   }
 
   .filter-and-sort {
-    gap: 2rem;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    gap: 1em;
 
-    > span {
-      flex-wrap: nowrap;
-      white-space: nowrap;
+    .sort {
       gap: 0.6em;
     }
   }
@@ -109,15 +109,17 @@
     }
   }
 
-  .descending::after {
+  .descending::after,
+  .ascending::after {
     margin-inline-start: 1ch;
     font-family: lichess;
+  }
+
+  .descending::after {
     content: $licon-DownTriangle;
   }
 
   .ascending::after {
-    margin-inline-start: 1ch;
-    font-family: lichess;
     content: $licon-UpTriangle;
   }
 

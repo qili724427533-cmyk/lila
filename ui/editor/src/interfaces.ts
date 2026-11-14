@@ -5,6 +5,11 @@ export type Selected = 'pointer' | 'trash' | [Color, Role];
 
 export const CASTLING_TOGGLES: CastlingToggle[] = ['K', 'Q', 'k', 'q'];
 
+export interface VisionPlacement {
+  boardFen: FEN;
+  orientation: Color;
+}
+
 export interface EditorState {
   fen: FEN;
   legalFen?: FEN;
@@ -17,6 +22,7 @@ export interface LichessEditor {
   setFen(fen: FEN): void;
   setOrientation(o: Color): void;
   setVariant(variant: VariantKey): void;
+  close(): void;
 }
 
 export interface Config {

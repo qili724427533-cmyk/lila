@@ -1,4 +1,6 @@
 .ublog-post {
+  overflow: hidden; // avoids body overflow
+
   &__title {
     @extend %break-word;
 
@@ -213,8 +215,9 @@
   }
 
   fieldset {
+    @include box-radius;
+
     border: $border;
-    border-radius: $box-radius-size;
     padding: 1rem 1.5rem 1.5rem;
   }
 

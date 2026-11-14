@@ -1,7 +1,9 @@
 import { Position } from 'chessops';
 
 import { completeNode } from 'lib/tree/node';
-import type { TreeNode, TreeNodeBase } from 'lib/tree/types';
+import type { TreeNode, TreeNodeBase, TreeNodeLite } from 'lib/tree/types';
+
+import type AnalyseCtrl from './ctrl';
 
 export function treeReconstruct(
   parts: TreeNodeBase[],
@@ -25,4 +27,52 @@ export function addCrazyData(node: TreeNode, pos: Position): void {
     node.crazy = {
       pockets: [pos.pockets.white, pos.pockets.black],
     };
+}
+
+export function hasUserContent(node: TreeNodeLite): boolean {
+  return (
+    !node.comp ||
+    Boolean(node.comments?.some(comment => !comment.comp)) ||
+    Boolean(node.glyphs?.some(glyph => !glyph.comp)) ||
+    node.children.some(hasUserContent)
+  );
+}
+
+// keep computer nodes only when they are needed as ancestors of a user node
+export function pruneMainlineAnalysis(node: TreeNodeLite): boolean {
+  node.children = node.children.filter(pruneMainlineAnalysis);
+  return hasUserContent(node);
+}
+
+export function mergeReviewData(into: TreeNodeLite, from: TreeNodeLite): void {
+  into.children = into.children.filter(hasUserContent);
+  if (from.eval) into.eval = from.eval;
+
+  const comments = new Map(into.comments?.filter(c => !c.comp).map(c => [c.id, c]));
+  from.comments?.forEach(c => comments.set(c.id, c));
+  into.comments = Array.from(comments.values());
+
+  const glyphs = new Map(into.glyphs?.filter(g => !g.comp).map(g => [`${g.id}:false`, g]));
+  from.glyphs?.forEach(g => glyphs.set(`${g.id}:${!!g.comp}`, g));
+  into.glyphs = Array.from(glyphs.values());
+
+  for (const fromChild of from.children) {
+    const intoChild = into.children.find(n => fromChild.id === n.id);
+    if (intoChild) mergeReviewData(intoChild, fromChild);
+    else into.children.push(fromChild);
+  }
+}
+
+export function registerPublicApi(ctrl: AnalyseCtrl): void {
+  if (ctrl.forecast) return; // ongoing correspondence analysis
+  const api = (window as any).lichess;
+  const { prev, next, first, last, previousBranch, nextBranch } = ctrl.navigate;
+  api.chessground = () => ctrl.chessground;
+  api.analysis = {
+    playUci: ctrl.playUci,
+    navigate: { prev, next, first, last, previousBranch, nextBranch },
+    data: () => ({
+      game: ctrl.data.game,
+    }),
+  };
 }

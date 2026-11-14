@@ -1,5 +1,5 @@
 import { randomToken } from '@/algo';
-import { throttle } from '@/async';
+import { debounce } from '@/async';
 import { readNdJson } from '@/xhr';
 
 import {
@@ -33,7 +33,7 @@ export class ExternalEngine implements CevalEngine {
 
   constructor(
     private readonly opts: ExternalEngineInfo,
-    private readonly status: EngineNotifier | undefined,
+    private readonly status: EngineNotifier,
   ) {}
 
   getState(): CevalState {
@@ -50,10 +50,14 @@ export class ExternalEngine implements CevalEngine {
     this.process(work);
   }
 
-  process: (work: Work) => void = throttle(700, (work: Work) => {
-    this.req = new AbortController();
-    this.analyse(work, this.req.signal);
-  });
+  private readonly process: (work: Work) => void = debounce(
+    (work: Work) => {
+      this.req = new AbortController();
+      this.analyse(work, this.req.signal);
+    },
+    250,
+    true,
+  );
 
   private async analyse(work: Work, signal: AbortSignal): Promise<void> {
     try {
@@ -97,6 +101,7 @@ export class ExternalEngine implements CevalEngine {
             cp: line.pvs[0]?.cp,
             mate: line.pvs[0]?.mate,
             pvs: line.pvs,
+            engineId: this.opts.id,
           },
           { threatMode: work.threatMode, path: work.path, ply: work.ply },
         );
@@ -117,7 +122,7 @@ export class ExternalEngine implements CevalEngine {
     this.req?.abort();
   }
 
-  engineName(): string {
+  version(): string {
     return this.opts.name;
   }
 

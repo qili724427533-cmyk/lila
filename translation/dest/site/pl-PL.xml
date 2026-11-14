@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-  <string name="gameSetup">Ustawienia gry</string>
   <string name="challengeAFriend" comment="be mindful how 'friend' translates in gendered languages. look for a more neutral term if there's an issue, or base your translation on a different phrase like 'invite to a game'. keep it short and convey the button's meaning without offense.">Rzuć wyzwanie znajomemu</string>
   <string name="playAgainstComputer">Zagraj z komputerem</string>
   <string name="gameMode">Tryby gry</string>
@@ -160,21 +159,22 @@
     <item quantity="other">%s Błędów</item>
   </plurals>
   <plurals name="numberMistakes">
-    <item quantity="one">%s pomyłka</item>
-    <item quantity="few">%s pomyłki</item>
-    <item quantity="many">%s pomyłek</item>
-    <item quantity="other">%s pomyłek</item>
+    <item quantity="one">%s Pomyłka</item>
+    <item quantity="few">%s Pomyłki</item>
+    <item quantity="many">%s Pomyłek</item>
+    <item quantity="other">%s Pomyłek</item>
   </plurals>
   <plurals name="numberInaccuracies">
-    <item quantity="one">%s niedokładność</item>
-    <item quantity="few">%s niedokładności</item>
-    <item quantity="many">%s niedokładności</item>
-    <item quantity="other">%s niedokładności</item>
+    <item quantity="one">%s Niedokładność</item>
+    <item quantity="few">%s Niedokładności</item>
+    <item quantity="many">%s Niedokładności</item>
+    <item quantity="other">%s Niedokładności</item>
   </plurals>
   <string name="moveTimes">Tempo gry</string>
   <string name="flipBoard">Obróć szachownicę</string>
   <string name="toggleLocalEngine">Przełącz silnik lokalny</string>
   <string name="engineSettings">Ustawienia silnika</string>
+  <string name="engine">Silnik</string>
   <string name="enginesFromStrongestToWeakest">Silniki szachowe od najmocniejszego do najsłabszego</string>
   <string name="illegalPosition">Niepoprawna pozycja</string>
   <string name="threefoldRepetition">Trzykrotne powtórzenie pozycji</string>
@@ -285,7 +285,7 @@
   <string name="usernameNotFound">Nie mogliśmy znaleźć żadnego użytkownika o tej nazwie: %s.</string>
   <string name="usernameCanBeUsedForNewAccount">Możesz użyć tej nazwy użytkownika, aby utworzyć nowe konto</string>
   <string name="emailSent">Wysłaliśmy do Ciebie e-mail na %s.</string>
-  <string name="emailCanTakeSomeTime">Dostarczenie email\'a może zająć trochę czasu.</string>
+  <string name="emailCanTakeSomeTime">Dostarczenie e-maila może zająć trochę czasu.</string>
   <string name="refreshInboxAfterFiveMinutes">Poczekaj 5 minut i odśwież swoją skrzynkę pocztową.</string>
   <string name="checkSpamOrJunkFolder" comment="checkSpamFolder&#10;It = The confirmation email">Jeśli nie otrzymasz wiadomości e-mail z potwierdzeniem, sprawdź folder Spam lub Śmieci. Upewnij się, że oznaczyłeś wiadomości z lichess.org jako bezpieczne i \"to nie spam\", dzięki czemu będziesz mógł otrzymywać ważne komunikaty.</string>
   <string name="sendEmailForAccountVerification">Jeśli nie możesz znaleźć wiadomości e-mail z potwierdzeniem, wyślij wiadomość do %s, a potwierdzimy Twoje konto.</string>
@@ -520,6 +520,8 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
     <item quantity="many">%s znajomych online</item>
     <item quantity="other">%s znajomych online</item>
   </plurals>
+  <string name="friendsOnlineAndPlaying">Znajomi online: %1$s
+Znajomi grający: %2$s</string>
   <string name="favoriteOpponents">Ulubieni przeciwnicy</string>
   <string name="follow">Obserwuj</string>
   <string name="following">Obserwowany</string>
@@ -571,6 +573,7 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="standByX">Parowanie graczy, przygotuj się do gry, %s!</string>
   <string name="pause">Pauza</string>
   <string name="resume">Wznów</string>
+  <string name="stop">Zatrzymaj</string>
   <string name="youArePlaying">Grasz!</string>
   <string name="winRate">Zwycięstw</string>
   <string name="performance">Wynik</string>
@@ -654,14 +657,12 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="reportAUser">Zgłoś użytkownika</string>
   <string name="user">Użytkownik</string>
   <string name="reason">Powód</string>
-  <string name="whatIsIheMatter">Jakie to ma znaczenie?</string>
   <string name="cheat">Oszust</string>
   <string name="troll">Natręt (troll)</string>
   <string name="other">Inne</string>
   <string name="reportCheatBoostHelp">Wklej link do partii i wytłumacz, co złego jest w zachowaniu tego użytkownika. Nie pisz tylko \"on oszukiwał\", lecz napisz jak doszedłeś/aś do tego wniosku.</string>
   <string name="reportUsernameHelp">Wytłumacz, co w nazwie użytkownika jest obraźliwe. Nie pisz tylko \"nazwa jest obraźliwa\", lecz napisz jak doszedłeś/aś do tego wniosku, zwłaszcza jeśli jest mało znany, nie po angielsku, slangowy lub odniesieniem do kultury/historii.</string>
   <string name="processReportFasterInEnglish" comment="Appears on the &quot;Report a user&quot; page https://lichess.org/report, to encourage users to write in English, so any Lichess moderator can process it.">Szybciej przetwarzymy Twoje zgłoszenie, jeśli napiszesz do nas po angielsku.</string>
-  <string name="error.provideOneCheatedGameLink">Podaj przynajmniej jeden odnośnik do gry, w której oszukiwano.</string>
   <string name="by">autor %s</string>
   <string name="importedByX">Zaimportowane przez %s</string>
   <string name="thisTopicIsNowClosed">Ten temat został zamknięty.</string>
@@ -773,7 +774,7 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="aboutX">Informacje o %s</string>
   <string name="xIsAFreeYLibreOpenSourceChessServer">%1$s jest %2$s darmowym, wolnym, pozbawionym reklam, otwartym serwisem szachowym.</string>
   <string name="really">naprawdę</string>
-  <string name="lichessUpdates">Aktualizacje Lichess</string>
+  <string name="lichessUpdates">Aktualności Lichess</string>
   <string name="contribute">Wsparcie</string>
   <string name="changelog">Dziennik zmian</string>
   <string name="termsOfService">Regulamin</string>
@@ -789,7 +790,7 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="signUpToHostOrJoinASimul">Dołącz do simultany</string>
   <string name="noSimulFound">Nie znaleziono symultany</string>
   <string name="noSimulExplanation">Taka symultana nie istnieje</string>
-  <string name="returnToSimulHomepage">Wróć do do strony głównej symultan</string>
+  <string name="returnToSimulHomepage">Wróć do strony głównej symultan</string>
   <string name="aboutSimul">Symultana to równoczesna gra z wieloma przeciwnikami.</string>
   <string name="aboutSimulImage">Grając na 50 szachownicach Fischer wygrał 47 partii, zremisował dwie i przegrał jedną.</string>
   <string name="aboutSimulRealLife">Pomysł został zaczerpnięty z rzeczywistych rozgrywek. Symultanista przemieszcza się pomiędzy szachownicami wykonując na nich posunięcia.</string>
@@ -848,7 +849,7 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="cumulative">Łącznie</string>
   <string name="glicko2Rating">Ranking Glicko-2</string>
   <string name="checkYourEmail">Sprawdź swoją skrzynkę e-mail</string>
-  <string name="weHaveSentYouAnEmailClickTheLink">Wysłaliśmy do Ciebie wiadomość e-mail. Kliknij w link znajdujący się w e-mailu aby aktywować swoje konto.</string>
+  <string name="weHaveSentYouAnEmailClickTheLink">Wysłaliśmy do Ciebie wiadomość e-mail. Kliknij w link znajdujący się w e-mailu, aby aktywować swoje konto.</string>
   <string name="ifYouDoNotSeeTheEmailCheckOtherPlaces">Jeśli nie widzisz wiadomości e-mail, sprawdź inne możliwe miejsca, takie jak kosz, spam lub inne foldery.</string>
   <string name="ifYouDoNotGetTheEmail">Jeśli nie otrzymasz e-maila w ciągu 5 minut:</string>
   <string name="checkAllEmailFolders">Sprawdź folder ze spamem, kosz oraz inne foldery</string>
@@ -861,11 +862,13 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="downloadAnnotated">Pobierz z komentarzem</string>
   <string name="downloadRaw">Pobierz bez komentarza</string>
   <string name="downloadImported">Pobierz zaimportowane</string>
+  <string name="downloadMyGames">Pobierz moje partie</string>
   <string name="downloadAllGames">Pobierz wszystkie partie</string>
+  <string name="downloadResults">Pobierz wyniki</string>
   <string name="crosstable">Wyniki spotkań</string>
   <string name="youCanAlsoScrollOverTheBoardToMoveInTheGame">Możesz także przewijać nad szachownicą, by zmieniać postęp partii.</string>
   <string name="scrollOverComputerVariationsToPreviewThem">Przewiń po wariantach komputera, aby je podglądać.</string>
-  <string name="analysisShapesHowTo">Kliknij podczas trzymania Shift lub przytrzymaj prawy przycisk myszy aby rysować okręgi i strzałki na szachownicy.</string>
+  <string name="analysisShapesHowTo">Kliknij prawy przycisk myszy (lub Shift + lewy przycisk myszy), aby rysować okręgi i strzałki na szachownicy. Aby uzyskać inne kolory, użyj tych opcji z prawym przyciskiem myszy:</string>
   <string name="primaryColorArrowsHowTo">Ctrl lub shift = kolor czerwony; command, alt lub meta = kolor niebieski; Ctrl lub shift + command, alt lub meta = kolor żółty.</string>
   <string name="letOtherPlayersMessageYou">Zezwól na wiadomości od innych graczy</string>
   <string name="receiveForumNotifications">Otrzymuj powiadomienia, kiedy ktoś wspomni o Tobie na forum</string>
@@ -881,12 +884,14 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="enableKidMode">Włącz tryb dla dzieci</string>
   <string name="disableKidMode">Wyłącz tryb dla dzieci</string>
   <string name="security">Bezpieczeństwo</string>
+  <string name="activeSessionsDescription">To jest lista urządzeń i aplikacji, które są zalogowane na Twoje konto. Jeśli zauważysz podejrzaną aktywność, upewnij się, że &lt;a href=\'%1$s\'&gt;sprawdź swój adres e-mail odzyskiwania konta&lt;/a&gt; i &lt;a href=\'%2$s\'&gt;zmień hasło&lt;/a&gt;.</string>
   <string name="sessions">Sesje</string>
   <string name="revokeAllSessions">unieważnić wszystkie sesje</string>
   <string name="playChessEverywhere">Graj w szachy wszędzie</string>
   <string name="everybodyGetsAllFeaturesForFree">Wszystkie funkcje za darmo dla każdego</string>
   <string name="viewTheSolution">Zobacz rozwiązanie</string>
   <string name="noChallenges">Brak wyzwań.</string>
+  <string name="browserNotificationsDenied">Wyskakujące powiadomienia wyłączone przez ustawienia przeglądarki</string>
   <plurals name="availableInNbLanguages">
     <item quantity="one">Dostępna w %s języku!</item>
     <item quantity="few">Dostępna w %s językach!</item>
@@ -1049,7 +1054,7 @@ Partie rankingowe zwiększą stabilność rankingu.</string>
   <string name="teamNamedX">Klub %1$s</string>
   <string name="youCannotPostYetPlaySomeGames">Nie możesz jeszcze publikować na forach. Rozegraj najpierw kilka partii!</string>
   <string name="subscribe">Subskrybuj</string>
-  <string name="unsubscribe">Zakończ subskrybcję</string>
+  <string name="unsubscribe">Zrezygnuj z subskrypcji</string>
   <string name="mentionedYouInX">wspomniał o tobie w \"%1$s\".</string>
   <string name="xMentionedYouInY">%1$s wspomniał o tobie w \"%2$s\".</string>
   <string name="invitedYouToX">zaprosił Cię do \"%1$s\".</string>
@@ -1074,6 +1079,8 @@ na ranking graczy</string>
   <string name="onlyMembersOfTeam">Tylko członkowie klubu</string>
   <string name="noRestriction">Bez ograniczeń</string>
   <string name="minimumRatedGames">Minimalna liczba partii rankingowych</string>
+  <string name="minimumAccountAge">Minimalny staż konta</string>
+  <string name="titledPlayersBypassRestriction">Nie dotyczy utytułowanych graczy.</string>
   <string name="minimumRating">Minimalny ranking</string>
   <string name="maximumWeeklyRating">Maksymalny tygodniowy ranking</string>
   <string name="positionInputHelp">Wklej poprawny FEN, aby rozpocząć każdą partię z danej pozycji.
@@ -1120,8 +1127,7 @@ Pozostaw puste, aby rozpoczynać partie z normalnej pozycji początkowej.</strin
   <string name="ourEventTips">Nasze wskazówki dotyczące organizacji wydarzeń</string>
   <string name="instructions">Instrukcje</string>
   <string name="showMeEverything">Pokaż mi wszystko</string>
-  <string name="lichessPatronInfo">Lichess jest organizacją niedochodową i całkowicie darmowym otwartym oprogramowaniem.
-Wszystkie koszty operacyjne, rozwój i treści są finansowane wyłącznie z darowizn użytkowników.</string>
+  <string name="lichessPatronInfo">Lichess jest organizacją charytatywną i całkowicie darmowym otwartym oprogramowaniem. Nasze koszty operacyjne, rozwój i treść zależą od darowizn użytkowników. Bez naszej szczodrej społeczności nie bylibyśmy w stanie utrzymać serwisu. Dziękujemy za dołączenie do nas!</string>
   <string name="nothingToSeeHere">W tej chwili nie ma nic do zobaczenia.</string>
   <string name="stats">Statystyki</string>
   <string name="accessibility">Ułatwienia dostępu</string>
@@ -1132,6 +1138,7 @@ Wszystkie koszty operacyjne, rozwój i treści są finansowane wyłącznie z dar
   <string name="offline" comment="status of a user">offline</string>
   <string name="search">Szukaj</string>
   <string name="clearSearch">Wyczyść wyszukiwanie</string>
+  <string name="searchInX">Szukaj w \"%s\"</string>
   <string name="thereAreNoResultsForX">Brak wyników dla \"%s\"</string>
   <string name="tags">Tagi</string>
   <string name="enPassant">Bicie w przelocie</string>
@@ -1141,4 +1148,5 @@ Wszystkie koszty operacyjne, rozwój i treści są finansowane wyłącznie z dar
   <string name="boards">Szachownice</string>
   <string name="write">Napisz</string>
   <string name="preview">Podgląd</string>
+  <string name="done">Gotowe</string>
 </resources>

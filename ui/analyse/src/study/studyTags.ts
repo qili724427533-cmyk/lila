@@ -1,7 +1,8 @@
-import { type Attrs, h, thunk, type VNode } from 'snabbdom';
+import { h, thunk, type VNode } from 'snabbdom';
 
 import { prop } from 'lib';
 import { throttle } from 'lib/async';
+import type { StatusName } from 'lib/game';
 import { enter, onInsert } from 'lib/view';
 
 import { option } from '../view/util';
@@ -37,10 +38,21 @@ export class TagsForm {
   submit = (name: string, value: string) => this.editable() && this.makeChange(name, value);
 }
 
+export const tagsResult = (tags: TagArray[]): [Color | undefined, StatusName] => {
+  const r = tags.find(r => r[0] === 'Result')?.[1];
+  return r === '1-0'
+    ? ['white', 'unknownFinish']
+    : r === '0-1'
+      ? ['black', 'unknownFinish']
+      : r === '1/2-1/2'
+        ? [undefined, 'draw']
+        : [undefined, 'created'];
+};
+
 export function view(root: StudyCtrl): VNode {
-  const chapter = root.tags.getChapter(),
-    tagKey = chapter.tags.map(t => t[1]).join(','),
-    key = chapter.id + root.data.name + chapter.name + root.data.likes + tagKey + root.vm.mode.write;
+  const chapter = root.tags.getChapter();
+  const tagKey = chapter.tags.map(t => t[1]).join(',');
+  const key = chapter.id + root.data.name + chapter.name + root.data.likes + tagKey + root.vm.mode.write;
   return thunk('div.' + chapter.id, doRender, [root, key]);
 }
 
@@ -64,7 +76,7 @@ const editable = (
 const titles = 'GM|WGM|IM|WIM|FM|WFM|CM|WCM|NM|WNM|LM|BOT';
 const acceptableTitlePattern = `${titles}|${titles.toLowerCase()}`;
 
-const inputAttrs: Record<string, Attrs> = (() => {
+const inputAttrs: Record<string, Record<string, string>> = (() => {
   const elo = { pattern: '\\d{3,4}' };
   const fideId = { pattern: '\\d{2,9}' };
   const title = { pattern: acceptableTitlePattern };
@@ -120,27 +132,27 @@ function renderPgnTags(tags: TagsForm, showRatings: boolean): VNode {
   );
   if (tags.editable()) {
     const existingTypes = new Set(chapter.tags.map(t => t[0]));
+    const updateSelectedType = (elem: HTMLSelectElement) => {
+      tags.selectedType(elem.value);
+      const pattern = inputAttrs[elem.value]?.pattern;
+      const input = elem.closest('tr')?.querySelector('input');
+      if (input) {
+        if (pattern) input.setAttribute('pattern', String(pattern));
+        else input.removeAttribute('pattern');
+        input.setAttribute('title', inputAttrs[elem.value]?.title ?? '');
+      }
+      return input;
+    };
     rows.push([
       h(
         'select.button.button-metal',
         {
           hook: {
             ...onInsert<HTMLSelectElement>(elem => {
-              tags.selectedType(elem.value);
-              elem.addEventListener('change', _ => {
-                tags.selectedType(elem.value);
-                const pattern = inputAttrs[elem.value]?.pattern;
-                $(elem)
-                  .parents('tr')
-                  .find('input')
-                  .each(function (this: HTMLInputElement) {
-                    if (pattern) this.setAttribute('pattern', String(pattern));
-                    else this.removeAttribute('pattern');
-                    this.focus();
-                  });
-              });
+              updateSelectedType(elem);
+              elem.addEventListener('change', () => updateSelectedType(elem)?.focus());
             }),
-            postpatch: (_, vnode) => tags.selectedType((vnode.elm as HTMLSelectElement).value),
+            postpatch: (_, vnode) => updateSelectedType(vnode.elm as HTMLSelectElement),
           },
         },
         [

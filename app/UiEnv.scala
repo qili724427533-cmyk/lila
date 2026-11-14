@@ -1,8 +1,8 @@
 package lila.app
 
+import lila.common.ClientName
 import lila.ui.*
 import lila.web.ui.*
-import lila.common.ClientName
 
 object UiEnv
     extends ScalatagsTemplate
@@ -24,6 +24,7 @@ object UiEnv
   def env: Env = envVar.get
 
   def netConfig = env.net
+  def webSocketConfig = env.web.webSocketConfig
   def picfitUrl = env.memo.picfitUrl
   def imageGetOrigin = env.memo.imageGetOrigin
 
@@ -35,7 +36,6 @@ object UiEnv
   def apiVersion = lila.security.Mobile.Api.currentVersion
 
   // helpers dependencies
-  def assetBaseUrl = netConfig.assetBaseUrl
   def netBaseUrl = netConfig.baseUrl
   def routeUrl = netConfig.routeUrl
   protected val ratingApi = lila.rating.ratingApi

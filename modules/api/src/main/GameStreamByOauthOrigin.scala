@@ -2,9 +2,8 @@ package lila.api
 
 import org.apache.pekko.stream.scaladsl.*
 import play.api.libs.json.*
-import play.api.mvc.RequestHeader
-import bloomfilter.mutable.BloomFilter
 import scalalib.net.UserAgent
+import se.thanh.pds.bloomfilter.BloomFilter
 
 import lila.common.{ Bus, HTTPRequest }
 import lila.core.game.{ FinishGame, Game, StartGame, WithInitialFen }
@@ -38,7 +37,7 @@ final class GameStreamByOauthOrigin(
       def close = inc(-1)
 
   private val allowedClients = List(
-    Client(UserId.t3, Origin("https://auth.taketaketake.com"), 70_000, 365.days, true),
+    Client(UserId.t3, Origin("https://auth.taketaketake.com"), 100_000, 365.days, true),
     Client(UserId("marcusbuffett"), Origin("https://chessbook.com"), 15_000, 90.days, false)
   )
   private val falsePositiveRate = 0.0005 // 0.05% false positives
@@ -71,7 +70,7 @@ final class GameStreamByOauthOrigin(
 
   def apply(since: Option[Instant], extraUsers: Set[UserId])(using
       me: Me,
-      req: RequestHeader
+      req: Req
   ): Either[String, Source[JsValue, ?]] =
     for
       client <- allowedClients.find(_.user.is(me)).toRight("Invalid authenticated user")
@@ -114,7 +113,7 @@ final class GameStreamByOauthOrigin(
         client.mon.users("recentlySeen").update(recentlySeenUsers.size)
 
         def matches(game: Game) = game.nonAi &&
-          game.players.exists(_.userId.exists(id => tokenUsers.mightContain(id.value)))
+          game.players.exists(_.userId.exists(id => tokenUsers.contains(id.value)))
 
         val subStart = client.startEvents.option:
           Bus.sub[StartGame]: e =>

@@ -1,11 +1,13 @@
 package lila.bot
 
-import lila.ui.Context
+import chess.IntRating
+import scalalib.ThreadLocalRandom
+
+import scala.util.matching.Regex
+
 import lila.common.HTTPRequest
 import lila.memo.SettingStore
-import scala.util.matching.Regex
-import scalalib.ThreadLocalRandom
-import chess.IntRating
+import lila.ui.Context
 
 private final class BoardReport(settingStore: SettingStore.Builder)(using
     ec: Executor,
@@ -23,7 +25,7 @@ private final class BoardReport(settingStore: SettingStore.Builder)(using
     me <- ctx.me
     rating <- game.player(me).flatMap(_.rating)
     if checkNow(game)
-    ref <- HTTPRequest.referer(ctx.req)
+    ref <- HTTPRequest.referer(using ctx.req)
     url <- lila.common.url.parse(ref).toOption
     domain = url.host.toString
     if domainSetting.get().matches(domain)

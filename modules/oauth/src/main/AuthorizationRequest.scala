@@ -4,7 +4,7 @@ object AuthorizationRequest:
 
   import Protocol.*
 
-  def fromReq(using play.api.mvc.RequestHeader): Either[Error, Prompt] =
+  def fromReq(using Req): Either[Error, Prompt] =
     import lila.common.HTTPRequest.{ queryStringGetAs as getAs, queryStringGet as get }
     for
       redirectUri <- get("redirect_uri").toRight(Error.RedirectUriRequired).flatMap(RedirectUri.from)
@@ -47,7 +47,13 @@ object AuthorizationRequest:
     def maybeLegacy: Boolean = codeChallengeMethod.isEmpty && codeChallenge.isEmpty
 
     lazy val trusted =
-      List("lichess.org", "discotron.lichess.org", "www.lichess4545.com", "wiki.lichess.ovh").has:
+      List(
+        "lichess.org",
+        "discotron.lichess.org",
+        "www.lichess4545.com",
+        "wiki.lichess.ovh",
+        "payments.lichess.org"
+      ).has:
         ~redirectUri.host
 
     lazy val isDanger = scopes.intersects(OAuthScope.dangerList) && !trusted

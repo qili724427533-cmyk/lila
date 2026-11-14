@@ -1,11 +1,11 @@
 package controllers
 
+import cats.mtl.Handle.*
 import play.api.libs.json.{ JsNull, JsObject, JsValue, Json }
 import play.api.mvc.*
 import scalalib.ThreadLocalRandom
 import scalalib.net.Bearer
 import scalatags.Text.all.stringFrag
-import cats.mtl.Handle.*
 
 import lila.app.*
 import lila.common.HTTPRequest
@@ -52,7 +52,7 @@ final class OAuth(env: Env, apiC: => Api) extends LilaController(env):
           SeeOther(authorized.redirectUrl(code))
       .rescue: error =>
         lila.oauth.logger.info:
-          s"OAuth.authorizeApply ${me.username} error: $error client: ${HTTPRequest.printClient(req)}"
+          s"OAuth.authorizeApply ${me.username} error: $error client: ${HTTPRequest.printClient}"
         lila.mon.user.oauth.authorize(error.error).increment()
         SeeOther(prompt.redirectUri.error(error, prompt.state))
   }

@@ -1,13 +1,12 @@
 package lila.memo
 
-import play.api.mvc.RequestHeader
-import bloomfilter.mutable.BloomFilter
 import scalalib.net.UserAgent
+import se.thanh.pds.bloomfilter.BloomFilter
 
-import lila.core.userId.UserId
-import lila.core.config.CollName
-import lila.db.dsl.*
 import lila.common.HTTPRequest
+import lila.core.config.CollName
+import lila.core.userId.UserId
+import lila.db.dsl.*
 
 /* Counts approximate unique viewers of a given resource.
  * Uses a bloom filter on (IP, UserAgent, UserId) to prevent duplicate counts.
@@ -15,28 +14,24 @@ import lila.common.HTTPRequest
  * and to bloom filter false positives (1%).
  */
 
-private final class ViewerCount(initialCount: Int, maxCount: Int):
+final class ViewerCount(initialCount: Int, maxCount: Int, fpRate: Double = 0.01):
 
   import ViewerCount.*
 
-  private val bloom = BloomFilter[String](maxCount, 0.01)
-  private var alive = true
-
+  private var bloom = BloomFilter[String](maxCount, fpRate)
   private var count: Int = initialCount
 
   def hit(a: Viewer): Unit =
-    if !alive then logger.warn("hit on dead viewer count")
-    else
-      val s = encode(a)
-      if !bloom.mightContain(s) then
-        bloom.add(s)
-        count += 1
+    val s = encode(a)
+    if !bloom.contains(s) then
+      bloom.add(s)
+      count += 1
 
-  def get: Int = count
+  def get: Int = (count * (1 + fpRate)).toInt
 
-  def kill(): Unit =
-    bloom.dispose()
-    alive = false
+  def reset(): Unit =
+    count = 0
+    bloom = BloomFilter[String](maxCount, fpRate)
 
 object ViewerCount:
 
@@ -48,7 +43,7 @@ object ViewerCount:
     case (ip, ua, id) =>
       s"${ip}${id.so(_.value)}${ua.value}"
 
-  def makeViewer(req: RequestHeader, user: Option[UserId]): Viewer =
+  def makeViewer(req: Req, user: Option[UserId]): Viewer =
     (req.remoteAddress, HTTPRequest.userAgent(req), user)
 
 final class ViewerCountApi(db: lila.db.Db, cacheApi: CacheApi)(using scheduler: Scheduler)(using Executor):
@@ -60,9 +55,7 @@ final class ViewerCountApi(db: lila.db.Db, cacheApi: CacheApi)(using scheduler: 
   private val coll = db(CollName("viewer_count"))
 
   private val cache = cacheApi.notLoading[CountKey, ViewerCount](512, "viewerCount"):
-    _.expireAfterAccess(ttl)
-      .removalListener[CountKey, ViewerCount]((_, vc, _) => vc.kill())
-      .buildAsync()
+    _.expireAfterAccess(ttl).buildAsync()
 
   private def fetch(key: CountKey): Fu[Int] =
     coll.primitiveOne[Int](bid(key), "v").dmap(_.orZero)
@@ -76,7 +69,7 @@ final class ViewerCountApi(db: lila.db.Db, cacheApi: CacheApi)(using scheduler: 
   def hit(key: CountKey, maxCount: Int)(viewer: Viewer): Unit =
     cache.getFuture(key, build(_, maxCount)).foreach(_.hit(viewer))
 
-  def hit(key: CountKey, maxCount: Int)(req: RequestHeader, user: Option[UserId]): Unit =
+  def hit(key: CountKey, maxCount: Int)(req: Req, user: Option[UserId]): Unit =
     hit(key, maxCount)(makeViewer(req, user))
 
   scheduler.scheduleWithFixedDelay(ttl / 2, ttl / 2): () =>

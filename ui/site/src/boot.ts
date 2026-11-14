@@ -1,7 +1,7 @@
 /// <reference types="../types/ab" />
 import * as ab from 'ab/site';
 
-import { scrollToInnerSelector, requestIdleCallbackSafe } from 'lib';
+import { scrollToInnerSelector, requestIdleCallbackSafe, once } from 'lib';
 import { dispatchChessgroundResize } from 'lib/chessgroundResize';
 import { prefersLightThemeQuery } from 'lib/device';
 import { licon } from 'lib/licon';
@@ -9,7 +9,7 @@ import { pubsub } from 'lib/pubsub';
 import { eventuallySetupDefaultConnection } from 'lib/socket';
 import { initMiniBoards, initMiniGames, updateMiniGame, finishMiniGame, toggleBoxInit } from 'lib/view';
 import { watchers } from 'lib/view/watchers';
-import { text as xhrText } from 'lib/xhr';
+import * as xhr from 'lib/xhr';
 
 import { display as announceDisplay } from './announce';
 import { upgradeNag } from './browserSupport';
@@ -25,12 +25,13 @@ export function boot() {
   const setBlind = location.hash === '#blind';
   const showDebug = location.hash.startsWith('#debug');
 
+  updateTimeAgo(1000);
+
   requestAnimationFrame(() => {
     initMiniBoards();
     initMiniGames();
     pubsub.on('content-loaded', initMiniBoards);
     pubsub.on('content-loaded', initMiniGames);
-    updateTimeAgo(1000);
     pubsub.on('content-loaded', renderTimeAgo);
     renderLocalizedTimestamps();
     pubsub.on('content-loaded', toggleBoxInit);
@@ -93,7 +94,7 @@ export function boot() {
                   .attr('href', url + '/withdraw')
                   .text(i18n.site.pause)
                   .on('click', function (this: HTMLAnchorElement) {
-                    xhrText(this.href, { method: 'post' });
+                    xhr.text(this.href, { method: 'post' });
                     $('#announce').remove();
                     return false;
                   }),
@@ -106,19 +107,36 @@ export function boot() {
           ),
       );
     });
+
     const mql = prefersLightThemeQuery();
+    if (document.body.dataset.theme?.includes('system')) applySystemThemeClasses(mql.matches);
     if (typeof mql.addEventListener === 'function')
-      mql.addEventListener('change', e => {
-        if (document.body.dataset.theme === 'system')
-          document.documentElement.className = e.matches ? 'light' : 'dark';
-      });
+      mql.addEventListener('change', e => applySystemThemeClasses(e.matches));
 
     upgradeNag();
     mirrorCheck();
+    playerCounter();
   }, 800);
 }
 
+function applySystemThemeClasses(prefersLight: boolean) {
+  const dataTheme = document.body.dataset.theme;
+  if (dataTheme === 'system') {
+    document.documentElement.className = prefersLight ? 'light' : 'dark';
+  } else if (dataTheme === 'transp system') {
+    document.documentElement.className = prefersLight ? 'transp light' : 'transp dark';
+  }
+}
+
 function mirrorCheck() {
-  const mirrors: string[] = ['bealive.fit'];
+  const mirrors: string[] = ['bealive.fit', 'www.fotosr.cyou', 'sweet.hair'];
   if (mirrors.includes(location.host)) location.href = 'https://lichess.org' + location.pathname;
+}
+
+function playerCounter() {
+  pubsub.after('socket.hasConnected').then(() => {
+    setTimeout(() => {
+      if (once('playerCounter', { hours: 3 })) xhr.textRaw('/player-count', { method: 'post' });
+    }, 1500);
+  });
 }

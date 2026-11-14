@@ -49,12 +49,14 @@
   <string name="castlingImported">Partida inportatu baduzu edo posizio jakin batetik hasi bazen, endrokearen eskubidea ondo aukeratu duzuna ziurtatu.</string>
   <string name="insufficientMaterial">Ez dago xake-mate emateko materialik</string>
   <string name="fideMate">FIDEren Xakearen Legeen 6.9 artikuluaren arabera, xake-matea egiteko jokaldi segida posible bat badago, partida ez da berdinketarekin bukatzen</string>
-  <string name="knightMate">Posible izan daiteke zaldun edo alfil batekin aurkariari xake-mate ematea, aurkariak erregeaz gain beste piezaren bat badu.</string>
+  <string name="knightMate">Posible izan daiteke zaldi edo alfil batekin aurkariari xake-mate ematea, aurkariak erregeaz gain beste piezaren bat badu.</string>
   <string name="noRatingPoints">Ez da puntuaziorik jaso</string>
   <string name="ratedGame">Ziurtatu puntuaziorako baliogarria den partida bat jokatu duzula. Lagunarteko partidek ez dute eraginik jokalarien puntuazioan.</string>
-  <string name="botRatingAbuse">Kasu batzutan robot baten aurka jokatzean, partida batek ez ditu sailkapenerako puntuak ematen jokalaria robotarekin gehiegitan jokatzen ari bada.</string>
+  <string name="botRatingAbuse">Kasu batzutan robot baten aurka jokatzean, partida batek ez ditu puntuaziorako puntuak ematen jokalaria robotarekin gehiegitan jokatzen ari bada.</string>
   <string name="errorPage">Errore orrialdea</string>
-  <string name="reportErrorPage">Errorea orrialdea agertu bazaizu, horren berri eman diezagukezu:</string>
+  <string name="reportTheBug">Bidali oharra:</string>
+  <string name="securityVulnerability">Segurtasun akatsa</string>
+  <string name="otherBug">Beste arazo bat</string>
   <string name="learnHowToMakeBroadcasts">Ikasi nola egin emanaldiak Lichessen</string>
   <string name="banAppeal">Debeku edo IP murriztapen baten aurka egitea</string>
   <string name="engineAppeal">Motore-erabilera edo tranpa marka</string>

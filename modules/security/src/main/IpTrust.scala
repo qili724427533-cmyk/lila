@@ -1,7 +1,5 @@
 package lila.security
 
-import play.api.mvc.RequestHeader
-
 import lila.common.HTTPRequest
 import lila.core.net.IpAddress
 import lila.core.security.{ Ip2ProxyApi, IsProxy }
@@ -20,10 +18,10 @@ final class IpTrust(proxyApi: Ip2ProxyApi, geoApi: GeoIP, firewallApi: Firewall)
   def ipData(ip: IpAddress): Fu[IpData] =
     proxyApi.ofIp(ip).dmap(IpData(_, geoApi.orUnknown(ip)))
 
-  def reqData(req: RequestHeader)(using p: IsProxy): IpData =
+  def reqData(req: Req)(using p: IsProxy): IpData =
     IpData(p, geoApi.orUnknown(HTTPRequest.ipAddress(req)))
 
-  def isPubOrTor(req: RequestHeader): Fu[Boolean] = proxyApi
+  def isPubOrTor(req: Req): Fu[Boolean] = proxyApi
     .ofReq(req)
     .dmap:
       case IsProxy.public | IsProxy.tor => true
@@ -40,24 +38,29 @@ final class IpTrust(proxyApi: Ip2ProxyApi, geoApi: GeoIP, firewallApi: Firewall)
 
     def apply[A](default: => Fu[A], cost: RL.Cost = 1, msg: => String = "")(
         op: => Fu[A]
-    )(using req: RequestHeader)(using Executor): Fu[A] =
+    )(using req: Req)(using Executor): Fu[A] =
+      proxyApi
+        .ofReq(req)
+        .flatMap: proxy =>
+          knownProxy(default, cost, msg)(op)(using req, proxy)
+
+    def knownProxy[A](default: => Fu[A], cost: RL.Cost = 1, msg: => String = "")(
+        op: => Fu[A]
+    )(using req: Req, proxy: IsProxy): Fu[A] =
       val ip = HTTPRequest.ipAddress(req)
-      for
-        proxy <- proxyApi.ofReq(req)
-        ipCostFactor =
-          if HTTPRequest.nginxWhitelist(req) then 1
-          else strategy(IpTrust)(proxy)
-        res <- limiter[Fu[A]](ip, default, (cost * ipCostFactor).toInt, s"$msg proxy:$proxy")(op)
-      yield res
+      val ipCostFactor =
+        if HTTPRequest.ipTier(req).yes then 1
+        else strategy(IpTrust)(proxy)
+      limiter[Fu[A]](ip, default, (cost * ipCostFactor).toInt, s"$msg proxy:$proxy")(op)
 
   def rateLimitCostFactor(
-      req: RequestHeader,
+      req: Req,
       strategy: IpTrust.type => RateLimitStrategy = _.defaultRateLimitStrategy
   ): Fu[Float] =
     proxyApi.ofReq(req).dmap(strategy(IpTrust))
 
-  def throttle(base: MaxPerSecond)(using req: RequestHeader)(using Executor): Fu[MaxPerSecond] =
-    if HTTPRequest.nginxWhitelist(req) then fuccess(base)
+  def throttle(base: MaxPerSecond)(using req: Req)(using Executor): Fu[MaxPerSecond] =
+    if HTTPRequest.ipTier(req).yes then fuccess(base)
     else
       proxyApi
         .ofReq(req)
@@ -76,24 +79,24 @@ object IpTrust:
     case IsProxy.vpn => 3
     case IsProxy.privacy => 3
     case IsProxy.tor => 4
-    case IsProxy.server => 1.5
-    case IsProxy.enterprise => 1.5
+    case IsProxy.server => 1.5f
+    case IsProxy.enterprise => 1.5f
     case IsProxy.public => 5
     case IsProxy.web => 3
-    case IsProxy.search => 0.5
+    case IsProxy.search => 0.5f
     case IsProxy.residential => 3
     case IsProxy.http1 => 2
     case _ => 1
 
   def proxyMultiplier(times: Float): RateLimitStrategy =
     case IsProxy.empty => 1
-    case IsProxy.search => 0.5 // search factor is < 1 so don't multiply it
+    case IsProxy.search => 0.5f // search factor is < 1 so don't multiply it
     case proxy => defaultRateLimitStrategy(proxy) * times
 
   def antiScraping(dch: Float, others: Float): RateLimitStrategy =
     case IsProxy.server => dch
     case IsProxy.http1 => dch
-    case IsProxy.search => 0.5 // search factor is < 1 so don't multiply it
+    case IsProxy.search => 0.5f // search factor is < 1 so don't multiply it
     case proxy => defaultRateLimitStrategy(proxy) * others
 
   type ThrottleStrategy = IsProxy => Float

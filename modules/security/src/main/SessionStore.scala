@@ -1,16 +1,15 @@
 package lila.security
 
-import scala.concurrent.blocking
-
-import play.api.mvc.RequestHeader
-import reactivemongo.pekkostream.{ PekkoStreamCursor, cursorProducer }
 import reactivemongo.api.bson.{ BSONDocumentHandler, BSONDocumentReader, BSONNull, Macros }
+import reactivemongo.pekkostream.{ PekkoStreamCursor, cursorProducer }
 import scalalib.net.UserAgent
+
+import scala.concurrent.blocking
 
 import lila.common.HTTPRequest
 import lila.core.id.SessionId
-import lila.core.net.{ ApiVersion, IpAddress }
 import lila.core.misc.oauth.AccessTokenId
+import lila.core.net.{ ApiVersion, IpAddress }
 import lila.core.security.FingerHash
 import lila.core.socket.Sri
 import lila.db.dsl.{ *, given }
@@ -29,19 +28,19 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
           _.flatMap: doc =>
             if doc.getAsOpt[Instant]("date").forall(_.isBefore(nowInstant.minusHours(12))) then
               coll.updateFieldUnchecked(bid(id), "date", nowInstant)
-            doc.getAsOpt[UserId]("user").map { AuthInfo(_, doc.contains("fp")) }
+            doc.getAsOpt[UserId]("user").map(AuthInfo(_, doc.contains("fp")))
 
-  def loginWithSessionId(sessionId: SessionId)(using req: RequestHeader): Fu[Option[AuthInfo]] =
+  def loginWithSessionId(sessionId: SessionId)(using Req): Fu[Option[AuthInfo]] =
     if canLogin(sessionId) then authCache.get(sessionId)
     else
-      logger.warn(s"oauth session login attempt ($sessionId) by ${HTTPRequest.print(req)}")
+      logger.warn(s"oauth session login attempt ($sessionId) by ${HTTPRequest.print}")
       fuccess(none)
 
   private def canLogin(sessionId: SessionId): Boolean =
     sessionId.value.startsWith(oauthSessionPrefix).not
 
   private def uncache(sessionId: SessionId): Unit =
-    blocking { blockingUncache(sessionId) }
+    blocking(blockingUncache(sessionId))
   private def uncacheAllOf(userId: UserId): Funit =
     coll.distinctEasy[SessionId, Seq]("_id", bdoc("user" -> userId)).map { ids =>
       blocking:
@@ -54,7 +53,7 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
   private[security] def save(
       isSignup: Boolean,
       userId: UserId,
-      req: RequestHeader,
+      req: Req,
       apiVersion: Option[ApiVersion],
       fp: Option[FingerPrint],
       proxy: lila.core.security.IsProxy,
@@ -92,7 +91,7 @@ final class SessionStore(val coll: Coll, cacheApi: lila.memo.CacheApi)(using Exe
       userId: UserId,
       tokenId: AccessTokenId,
       mobile: Option[lila.core.net.LichessMobileUa],
-      req: RequestHeader
+      req: Req
   ): Funit =
     val id = s"${oauthSessionPrefix}${tokenId.value.take(20)}"
     val ua = mobile
@@ -245,7 +244,7 @@ private object SessionStore:
 
   case class Info(ip: IpAddress, ua: UserAgent, fp: Option[FingerHash], date: Instant):
     def datedIp = Dated(ip, date)
-    def datedFp = fp.map { Dated(_, date) }
+    def datedFp = fp.map(Dated(_, date))
     def datedUa = Dated(ua, date)
 
   given BSONDocumentReader[Info] = Macros.reader[Info]

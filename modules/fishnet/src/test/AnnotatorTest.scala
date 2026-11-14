@@ -1,8 +1,8 @@
 package lila.fishnet
 import chess.format.FullFen
 import chess.format.pgn.{ Parser, PgnStr, SanStr, Tags }
-import chess.variant.{ Standard, Variant }
 import chess.opening.OpeningDb
+import chess.variant.{ Standard, Variant }
 import chess.{ ByColor, Ply }
 import play.api.libs.json.Json
 
@@ -85,4 +85,4 @@ object AnnotatorTest:
       Instant.ofEpochMilli(1684055956),
       Work.Origin.manualRequest.some
     )
-    builder(Client.offline, analysis, xs).await(1.second, "parse analysis")
+    builder(Client.offline, analysis, none, xs).await(1.second, "parse analysis")

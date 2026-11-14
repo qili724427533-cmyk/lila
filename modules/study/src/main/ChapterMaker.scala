@@ -95,21 +95,24 @@ final private class ChapterMaker(
     def isMe(name: Option[chess.PlayerName]) = name.flatMap(n => UserStr.read(n.value)).exists(_.is(userId))
     data.orientation match
       case Orientation.Fixed(color) => color
-      case _ if isMe(tags.names.white) => Color.white
-      case _ if isMe(tags.names.black) => Color.black
-      // If it is a concealed chapter (puzzles from a coach/book/course), start from side which moves first
-      case _ if data.isConceal => root.color
-      // if an outcome is known, then it's a finished game, which we show from white perspective by convention
-      case _ if tags.outcome.isDefined => Color.white
-      // in gamebooks (interactive chapter), we guess the orientation based on the last node
-      case _ if data.isGamebook => !root.lastMainlineNode.color
-      // else we show from the perspective of whoever turn it is to move
-      case _ => root.lastMainlineNode.color
+      case _ =>
+        tags("Orientation").flatMap(Color.fromName) | {
+          if isMe(tags.names.white) then Color.white
+          else if isMe(tags.names.black) then Color.black
+          // If it is a concealed chapter (puzzles from a coach/book/course), start from side which moves first
+          else if data.isConceal then root.color
+          // if an outcome is known, then it's a finished game, which we show from white perspective by convention
+          else if tags.outcome.isDefined then Color.white
+          // in gamebooks (interactive chapter), we guess the orientation based on the last node
+          else if data.isGamebook then !root.lastMainlineNode.color
+          // else we show from the perspective of whoever turn it is to move
+          else root.lastMainlineNode.color
+        }
 
   def fromFenOrBlank(study: Study, data: Data, order: Int, userId: UserId): Chapter =
     val variant = data.variant | Variant.default
     val (root, isFromFen) =
-      data.fen.filterNot(_.isInitial).flatMap { Fen.readWithMoveNumber(variant, _) } match
+      data.fen.filterNot(_.isInitial).flatMap(Fen.readWithMoveNumber(variant, _)) match
         case Some(game) =>
           Root(
             ply = game.ply,
@@ -186,23 +189,29 @@ final private class ChapterMaker(
         )
       }
 
-  def makeRoot(
-      game: Game,
-      pgnOpt: Option[PgnStr],
-      initialFen: Option[Fen.Full]
-  ): Fu[Root] =
+  def makeRoot(game: Game, pgnOpt: Option[PgnStr], initialFen: Option[Fen.Full]): Fu[Root] =
     initialFen
       .fold(gameRepo.initialFen(game)): fen =>
         fuccess(fen.some)
       .map: goodFen =>
-        val fromGame = GameToRoot(game, goodFen, withClocks = true)
+        def gameToRoot(withEndComment: Boolean) =
+          GameToRoot(game, goodFen, withClocks = true, withEndComment = withEndComment)
         pgnOpt.flatMap(StudyPgnImport.result(_, Nil).toOption.map(_.root)) match
-          case Some(r) => fromGame.merge(r)
-          case None => fromGame
+          case Some(r) => gameToRoot(!hasGameEndComment(game, r)).merge(r)
+          case None => gameToRoot(withEndComment = false)
+
+  private def hasGameEndComment(game: Game, root: Root): Boolean =
+    game.finished &&
+      root.mainline.lastOption.exists: last =>
+        val result = chess.Outcome.showResult(chess.Outcome(game.winnerColor).some)
+        val status = lila.tree.StatusText(game.status, game.winnerColor, game.variant)
+        val text = s"$result $status"
+        last.comments.value.exists: comment =>
+          comment.text.value == text && comment.by == lila.tree.Node.Comment.Author.Lichess
 
   private val UrlRegex = {
     val escapedDomain = net.domain.value.replace(".", "\\.")
-    s"""$escapedDomain/(\\w{8,12})"""
+    s"""$escapedDomain/game/(\\w{8,12})"""
   }.r.unanchored
 
   @scala.annotation.tailrec
@@ -251,7 +260,7 @@ private object ChapterMaker:
         .so(_.linesIterator.take(Study.maxChapters.value).toList)
         .map(_.trim)
         .filter(_.nonEmpty)
-        .map { g => copy(game = g.some) }
+        .map(g => copy(game = g.some))
         .some
         .filter(_.sizeIs > 1)
 

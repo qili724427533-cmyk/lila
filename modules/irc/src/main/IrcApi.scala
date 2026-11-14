@@ -1,14 +1,14 @@
 package lila.irc
 
 import play.api.mvc.Call
+import scalalib.DiffStr
 
 import lila.core.LightUser
 import lila.core.LightUser.Me.given
 import lila.core.id.*
 import lila.core.irc.*
-import lila.core.userId.ModId
 import lila.core.study.data.StudyChapterName
-import lila.core.data.DiffStr
+import lila.core.userId.ModId
 
 final class IrcApi(
     zulip: ZulipClient,
@@ -154,10 +154,12 @@ final class IrcApi(
         note.so(n => s"\nnote: $n")
 
   def payoutNotify(p: lila.core.msg.PayoutMessages): Funit =
-    zulip(_.adminPrizes, p.tourName):
-      val link = markdown.link(p.tourUrl, p.tourName)
-      val playerList = p.userIds.map(id => s"1. ${markdown.userLink(lightUser(id))}").mkString("\n")
-      s"$link\n\nPlayers notified:\n$playerList".pp
+    val messages =
+      s"${markdown.link(p.tourUrl, p.tourName)}\n\nPlayers notified:" :: p.userIds.map(id =>
+        markdown.userLink(lightUser(id))
+      )
+    messages.sequentiallyVoid: content =>
+      zulip.sendAndGetLink(_.payments, p.tourName)(content)
 
   def broadcasterDm(topicUserId: UserId, senderId: UserId, content: String): Funit =
     zulip(_.broadcastDms, s"/${lightUser(topicUserId).name}"):
@@ -183,8 +185,9 @@ final class IrcApi(
       s"${markdown.userLink(user)} edited ${markdown.lichessLink(s"/opening/$opening/$moves", opening)}"
 
   def reportPuzzle(user: LightUser, puzzleId: PuzzleId, reportText: String): Funit =
+    val escaped = escapeUserText(reportText)
     zulip(_.content, "puzzle reports"):
-      s"${markdown.userLink(user)} reported ${markdown.lichessLink(s"/training/$puzzleId", puzzleId)} because $reportText"
+      s"${markdown.userLink(user)} reported ${markdown.lichessLink(s"/training/$puzzleId", puzzleId)} because $escaped"
 
   def broadcastStart(id: RelayRoundId, fullName: String): Funit =
     zulip(_.broadcast, "non-tiered broadcasts"):
@@ -221,11 +224,13 @@ final class IrcApi(
     zulip(_.broadcast, s"orphan boards - $tier tier"):
       s"""${markdown.broadcastGameLink(id, chapterId, name)} $boardName"""
 
-  def userAppeal(user: LightUser)(using mod: LightUser.Me): Funit =
+  def userAppeal(user: LightUser, markers: List[ModId])(using mod: LightUser.Me): Funit =
     zulip
       .sendAndGetLink(_.mod.adminAppeal, "/" + user.name):
         val link = markdown.lichessLink(s"/appeal/${user.name}", user.name)
-        s"${markdown.modLink(mod.name)} :monkahmm: is looking at the appeal of **$link**"
+        val markersTxt = markers.map(m => lightUser(m.userId).name).mkString(", ")
+        s"${markdown.modLink(mod.name)} :monkahmm: is looking at the appeal of **$link**" +
+          markersTxt.nonEmpty.so(s" (marked by $markersTxt)")
       .flatMapz: zulipAppealConv =>
         noteApi.write(user.id, s"Appeal discussion: $zulipAppealConv", modOnly = true, dox = true)
 
@@ -245,7 +250,7 @@ final class IrcApi(
   def dailyPuzzle(id: PuzzleId): Funit =
     zulip(_.general, "daily puzzle"):
       markdown.lichessLink(s"/training/$id", "Solve the daily puzzle") +
-        markdown.link(Url(s"${net.assetBaseUrl}/training/export/gif/thumbnail/$id.gif"), ":")
+        markdown.link(Url(s"${net.baseUrl}/training/export/gif/thumbnail/$id.gif"), ":")
 
   def stop(): Funit = zulip(_.general, "lila")("Lichess is restarting.")
 
@@ -254,6 +259,9 @@ final class IrcApi(
 
   private def impersonatedByText(impersonator: Option[LightUser]): String =
     impersonator.so(mod => s" (impersonated by ${markdown.modLink(mod.name)})")
+
+  private def escapeUserText(text: String): String =
+    text.replaceAll("""[\[\]*`_~@]""", "")
 
   object charge:
     import lila.core.plan.ChargeEvent

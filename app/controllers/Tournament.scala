@@ -6,10 +6,11 @@ import scalalib.data.Preload
 
 import lila.app.{ *, given }
 import lila.common.HTTPRequest
-import lila.common.Json.given
 import lila.gathering.Condition.GetMyTeamIds
-import lila.tournament.{ MyInfo, Tournament as Tour, TournamentForm }
 import lila.mon.extensions.*
+import lila.tournament.{ MyInfo, Tournament as Tour, TournamentForm }
+import lila.api.GameApiV2
+import lila.game.PgnDump.requestPgnFlags
 
 final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Materializer)
     extends LilaController(env):
@@ -23,7 +24,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
 
   private def tournamentNotFound(using Context) = NotFound.page(views.tournament.ui.notFound)
 
-  def home = Open(serveHome)
+  def home = OpenOrScoped(_.Web.Mobile)(serveHome)
   def homeLang = LangPage(routes.Tournament.home)(serveHome)
 
   private def serveHome(using ctx: Context) = NoBot:
@@ -75,7 +76,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
           if _ then Ok.async(views.tournament.restricted(tour))
           else
             for
-              myInfo <- ctx.me.so { jsonView.fetchMyInfo(tour, _) }
+              myInfo <- ctx.me.so(jsonView.fetchMyInfo(tour, _))
               verdicts <- api.getVerdicts(tour, myInfo.isDefined)
               version <- env.tournament.version(tour.id)
               playerId = getUserStr("player").map(_.id)
@@ -132,11 +133,12 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
       val page = (getInt("page") | 1).atLeast(1).atMost(maxPage)
       given GetMyTeamIds = me => env.team.cached.teamIdsList(me.userId)
       for
+        socketVersion <- getBool("socketVersion").optionFu(env.tournament.version(tour.id))
         data <- env.tournament.jsonView(
           tour = tour,
           page = page.some,
           playerInfoExt = none,
-          socketVersion = none,
+          socketVersion = socketVersion,
           partial = false,
           withScores = true,
           withDescription = true,
@@ -144,9 +146,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
         )
         chatOpt <- getBool("chat").so(loadChat(tour, data))
         jsChat = chatOpt.map(env.chat.json.mobile(_))
-        socketVersion <- getBool("socketVersion").optionFu(env.tournament.version(tour.id))
-      yield JsonOk:
-        data.add("chat", jsChat).add("socketVersion" -> socketVersion)
+      yield Ok(data.add("chat", jsChat))
 
   private def isRestricted(tour: Tour)(using Context) =
     if tour.isEnterable || tour.isRecentlyFinished then fuFalse else couldBeEnum
@@ -237,30 +237,18 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
       }
   }
 
-  private val createLimitPerIP = env.security.ipTrust.rateLimit(800, 1.day, "tournament.ip")
-
-  private[controllers] def rateLimitCreation(
-      isPrivate: Boolean,
-      fail: => Fu[Result]
-  )(create: => Fu[Result])(using me: Me, req: RequestHeader): Fu[Result] =
-    val cost =
-      if me.is(UserId.lichess) then 1
-      else if isGranted(_.ManageTournament) then 2
-      else if me.hasTitle ||
-        env.streamer.liveApi.isStreaming(me) ||
-        me.isVerified ||
-        isPrivate
-      then 5
-      else 20
-    limit.tourCreate(me, fail, cost = cost):
-      createLimitPerIP(fail, cost = cost, msg = me.username.value):
-        create
+  private[controllers] def rateLimitCreation(isPrivate: Boolean, fail: => Fu[Result])(
+      create: => Fu[Result]
+  )(using me: Me): Fu[Result] =
+    def updateCost(base: Int) = base.atMost:
+      if me.hasTitle || env.streamer.liveApi.isStreaming(me) || me.isVerified || isPrivate then 5 else 20
+    limit.tourCreate(me, () => fail, updateCost): () =>
+      create
 
   def webCreate = AuthBody(_ ?=> _ ?=> create)
   def apiCreate = ScopedBody(_.Tournament.Write)(_ ?=> _ ?=> create)
 
   private def create(using BodyContext[?])(using me: Me) = NoBot:
-    def whenRateLimited = negotiate(Redirect(routes.Tournament.home), rateLimited)
     env.team.api
       .lightsByTourLeader(me)
       .flatMap: teams =>
@@ -271,7 +259,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
               doubleJsonFormError(err)
             ),
           setup =>
-            rateLimitCreation(setup.isPrivate, whenRateLimited):
+            rateLimitCreation(setup.isPrivate, negotiate(Redirect(routes.Tournament.home), rateLimited)):
               given GetMyTeamIds = _ => fuccess(teams.map(_.id))
               for
                 tour <- api.createTournament(setup, teams, andJoin = ctx.isWebAuth)
@@ -292,7 +280,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
                     withScores = false,
                     withAllowList = true,
                     withDescription = true
-                  ).map { Ok(_) }
+                  ).map(Ok(_))
                 )
               yield result
         )
@@ -317,7 +305,7 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
                 withDescription = true
               )
             yield
-              discard { env.report.api.automodComms(data.automodText, routes.Tournament.show(tour.id).url) }
+              discard(env.report.api.automodComms(data.automodText, routes.Tournament.show(tour.id).url))
               Ok(json)
         )
       }
@@ -397,8 +385,8 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
         .inject(views.tournament.list.shields.byCateg(categ, awards))
 
   def calendar = Open:
-    api.calendar.flatMap: tours =>
-      Ok.page(views.tournament.list.calendar(env.tournament.apiJsonView.calendar(tours)))
+    api.calendar.json.flatMap: json =>
+      negotiate(Ok.page(views.tournament.list.calendar(json)), Ok(json))
 
   def history(freq: String, page: Int) = Open:
     lila.tournament.Schedule.Freq.byName.get(freq).so { fr =>
@@ -463,6 +451,44 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
           Ok.page(views.tournament.moderation.page(tour, view, players))
   }
 
+  def downloadGames(id: TourId) = AnonOrScoped(): ctx ?=>
+    WithVisibleTournament(id): tour =>
+      val onlyUserId = getUserStr("player").map(_.id)
+      val config = GameApiV2.ByTournamentConfig(
+        tour = tour,
+        format = GameApiV2.Format.byRequest,
+        flags = requestPgnFlags(extended = false, delayMoves = true),
+        perSecond = GameApiV2.gamesPerSecond
+      )
+      limit.GlobalConcurrencyLimitPerIP
+        .download(ctx.req.ipAddress)(env.api.gameApiV2.exportByTournament(config, onlyUserId)): source =>
+          Ok.chunked(source)
+            .asAttachmentStream(env.api.gameApiV2.filename(tour, config.format))
+            .as(config.contentType)
+
+  def downloadResults(id: TourId) = AnonOrScoped():
+    val csv = HTTPRequest.acceptsCsv(req) || get("as").has("csv")
+    WithVisibleTournament(id): tour =>
+      val withSheet = getBool("sheet")
+      val perSecond = MaxPerSecond:
+        if withSheet
+        then (20 - (tour.estimateNumberOfGamesOneCanPlay / 20).toInt).atLeast(10)
+        else 50
+      val source = env.tournament.api.resultStream(
+        tour,
+        perSecond,
+        getInt("nb") | Int.MaxValue,
+        withSheet = withSheet
+      )
+      val result =
+        if csv then apiC.csvDownload(lila.tournament.TournamentCsv(source))
+        else apiC.jsonDownload(source.map(lila.tournament.JsonView.playerResultWrites.writes))
+      result.asAttachment(env.api.gameApiV2.filename(tour, if csv then "csv" else "ndjson"))
+
+  def apiTeams(id: TourId) = AnonOrScoped():
+    WithVisibleTournament(id): tour =>
+      JsonOk(env.tournament.jsonView.apiTeamStanding(tour))
+
   private def WithEditableTournament(id: TourId)(
       f: Tour => Fu[Result]
   )(using ctx: Context, me: Me): Fu[Result] =
@@ -473,11 +499,10 @@ final class Tournament(env: Env, apiC: => Api)(using org.apache.pekko.stream.Mat
 
   private def WithVisibleTournament(id: TourId)(
       f: Tour => Fu[Result]
-  )(using ctx: Context): Fu[Result] =
+  )(using Context): Fu[Result] =
     def nope = negotiate(tournamentNotFound, notFoundJson("No such tournament"))
     cachedTour(id).flatMap:
-      case None => nope
-      case Some(tour) =>
+      _.fold(nope): tour =>
         tour.singleTeamId
           .fold(fuTrue)(env.team.api.clasMemberCheck)
           .flatMap:

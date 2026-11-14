@@ -1,13 +1,13 @@
 package lila.ui
 
+import chess.format.Fen
 import play.api.i18n.Lang
 import play.api.libs.json.{ JsObject, Json }
-import java.time.YearMonth
-import chess.format.Fen
-import scalalib.StringOps.addQueryParams
 
+import java.time.YearMonth
+
+import lila.core.config.{ ImageGetOrigin, NetConfig }
 import lila.core.i18n.Translate
-import lila.core.config.ImageGetOrigin
 import lila.ui.ScalatagsTemplate.{ *, given }
 
 object bits:
@@ -23,12 +23,11 @@ object bits:
     div(cls := "mselect")(
       input(
         tpe := "checkbox",
-        cls := "mselect__toggle fullscreen-toggle",
+        cls := "mselect__toggle mselect__toggle--mask fullscreen-toggle",
         st.id := s"mselect-$id",
         autocomplete := "off"
       ),
       label(`for` := s"mselect-$id", cls := "mselect__label", role := "menu")(current),
-      label(`for` := s"mselect-$id", cls := "fullscreen-mask"),
       st.nav(cls := "mselect__list")(items.map(_(cls := "mselect__item", role := "menuitem")))
     )
 
@@ -146,14 +145,16 @@ object bits:
       )
     )
 
-  def markdownAlternate(url: String, params: Map[String, String] = Map.empty) =
-    link(
-      rel := "alternate",
-      tpe := "text/markdown",
-      href := addQueryParams(url, params + ("output_format" -> "md"))
-    )
-
   def structuredData(tpe: String)(json: JsObject) = raw:
     val js = Json.stringify:
       Json.obj("@context" -> "https://schema.org", "@type" -> tpe) ++ json
     s"""<script type="application/ld+json">$js</script>"""
+
+  def organizationJson(net: NetConfig) = net.domain.isLichessProd.option:
+    Json.obj(
+      "@type" -> "Organization",
+      "@id" -> s"${net.baseUrl}/#org",
+      "name" -> "Lichess",
+      "url" -> net.baseUrl.value,
+      "logo" -> s"${net.baseUrl}/assets/logo/lichess.svg"
+    )

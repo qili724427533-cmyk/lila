@@ -2,8 +2,8 @@ package lila.api
 
 import chess.format.Fen
 import chess.opening.Opening
-import scalalib.data.Preload
 import play.api.libs.json.*
+import scalalib.data.Preload
 
 import lila.analyse.{ Analysis, JsonView as analysisJson }
 import lila.api.Context.given
@@ -12,6 +12,8 @@ import lila.common.Json.given
 import lila.core.i18n.Translate
 import lila.core.perm.Granter
 import lila.core.user.GameUsers
+import lila.game.GameExt.timeForFirstMove
+import lila.mon.extensions.*
 import lila.pref.Pref
 import lila.puzzle.PuzzleOpening
 import lila.round.{ Forecast, JsonView }
@@ -19,8 +21,6 @@ import lila.simul.Simul
 import lila.swiss.GameView as SwissView
 import lila.tournament.GameView as TourView
 import lila.tree.{ ExportOptions, Tree }
-import lila.game.GameExt.timeForFirstMove
-import lila.mon.extensions.*
 
 final private[api] class RoundApi(
     jsonView: JsonView,
@@ -82,7 +82,6 @@ final private[api] class RoundApi(
   )(using ctx: Context): Fu[JsObject] = {
     for
       initialFen <- initialFenO.fold(gameRepo.initialFen(pov.game))(fuccess)
-      given Translate = ctx.translate
       opening = details.so(gameOpening.of(pov.game, full = ctx.isAuth))
       (json, simul, swiss, note, bookmarked) <-
         (
@@ -107,7 +106,7 @@ final private[api] class RoundApi(
       blurs = Granter.opt(_.ViewBlurs),
       rating = ctx.pref.showRatings,
       nvui = ctx.blind,
-      lichobileCompat = HTTPRequest.isLichobile(ctx.req)
+      lichobileCompat = HTTPRequest.isLichobile(using ctx.req)
     )
 
   def review(
@@ -120,7 +119,6 @@ final private[api] class RoundApi(
       tv: Option[lila.round.OnTv] = None,
       owner: Boolean = false
   )(using ctx: Context): Fu[JsObject] =
-    given Translate = ctx.translate
     (
       jsonView.watcherJson(
         pov,
@@ -248,7 +246,7 @@ final private[api] class RoundApi(
   private def withAnalysis(g: Game, o: Option[Analysis], initialFen: Option[Fen.Full])(json: JsObject) =
     json.add(
       "analysis",
-      o.map { analysisJson.bothPlayers(g.startedAtPly, _, division = divider(g, initialFen)) }
+      o.map(analysisJson.bothPlayers(g.startedAtPly, _, division = divider(g, initialFen)))
     )
 
   def withTournament(pov: Pov, viewO: Option[TourView])(json: JsObject)(using Translate) =

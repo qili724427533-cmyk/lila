@@ -2,10 +2,10 @@ package lila.clas
 
 import org.apache.pekko.stream.Materializer
 import org.apache.pekko.stream.scaladsl.*
-import bloomfilter.mutable.BloomFilter
-import reactivemongo.pekkostream.cursorProducer
-import reactivemongo.api.bson.BSONNull
 import play.api.Mode
+import reactivemongo.api.bson.BSONNull
+import reactivemongo.pekkostream.cursorProducer
+import se.thanh.pds.bloomfilter.BloomFilter
 
 import lila.db.dsl.{ *, given }
 import lila.mon.extensions.*
@@ -15,7 +15,7 @@ final class ClasUserFilters(using Executor, Materializer, Scheduler)(colls: Clas
   private val loadImmediately = false && mode == Mode.Dev
 
   val student = ClasUserCache("student")(
-    estimatedCount = if mode == Mode.Dev then 1_000 else 64_000,
+    estimatedCount = if mode == Mode.Dev then 1_000 else 100_000,
     source = colls.clas
       .aggregateWith[Bdoc](readPreference = ReadPref.sec): framework =>
         import framework.*
@@ -46,7 +46,7 @@ final class ClasUserFilters(using Executor, Materializer, Scheduler)(colls: Clas
   )
 
   val teacher = ClasUserCache("teacher")(
-    estimatedCount = if mode == Mode.Dev then 50 else 4_000,
+    estimatedCount = if mode == Mode.Dev then 50 else 7_000,
     source = colls.clas
       .find(bdoc("archived".exists(false)), bdoc("teachers" -> true, "_id" -> false).some)
       .cursor[Bdoc](ReadPref.sec)
@@ -57,18 +57,17 @@ final class ClasUserFilters(using Executor, Materializer, Scheduler)(colls: Clas
   )
 
 private trait CacheBackend[A]:
-  def mightContain(a: A): Boolean
+  def contains(a: A): Boolean
   def add(a: A): Unit
-  def dispose(): Unit
 
 // Stick to [String], it does unsafe operations that don't play well with opaque types
 private final class BloomFilterCache(estimatedCount: Int) extends CacheBackend[String]:
   private val bloom: BloomFilter[String] = BloomFilter[String](estimatedCount + 100, 0.00003)
-  export bloom.{ mightContain, add, dispose }
+  export bloom.{ contains, add }
 
 private final class SetCache[A] extends CacheBackend[A]:
   private val set = scala.collection.mutable.Set.empty[A]
-  export set.{ contains as mightContain, clear as dispose }
+  export set.contains
   def add(a: A): Unit = set.add(a)
 
 private def makeCacheBackend(estimatedCount: Int): CacheBackend[String] =
@@ -83,7 +82,7 @@ private final class ClasUserCache(name: String)(
 
   private var backend: CacheBackend[String] = makeCacheBackend(0) // temporary empty filter
 
-  def apply(userId: UserId) = backend.mightContain(userId.value)
+  def apply(userId: UserId) = backend.contains(userId.value)
   def add(userId: UserId): Unit = backend.add(userId.value)
 
   private def rebuildBloomFilter(): Unit =
@@ -98,7 +97,6 @@ private final class ClasUserCache(name: String)(
       .addEffect: nb =>
         logNb(nb)
         lila.mon.clas.bloomFilter(name).count.update(nb)
-        backend.dispose()
         backend = nextBackend
       .monSuccess(lila.mon.clas.bloomFilter(name).fu)
 

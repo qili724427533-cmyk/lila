@@ -54,7 +54,7 @@ final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: F
       groupLabel(field)(labelContent),
       content(field),
       errors(field),
-      help.map { helper(_) }
+      help.map(helper(_))
     )
 
   def input(field: Field, typ: String = "", klass: String = "") /*: BaseTagType*/ =
@@ -73,13 +73,14 @@ final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: F
       fieldName: String,
       checked: Boolean,
       action: Option[String] = None,
-      cssClass: String = "cmn-toggle"
+      cssClass: String = "cmn-toggle",
+      value: String = "true"
   ) =
     span(cls := cssClass)(
       st.input(
         st.id := fieldId,
         name := fieldName,
-        st.value := "true",
+        st.value := value,
         tpe := "checkbox",
         checked.option(st.checked),
         action.map(st.data("action") := _)
@@ -128,7 +129,7 @@ final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: F
         ),
         groupLabel(field)(labelContent)
       ),
-      help.map { helper(_) }
+      help.map(helper(_))
     )
 
   def isChecked(field: Field): Boolean =
@@ -305,7 +306,7 @@ final class Form3(formHelper: FormHelper & I18nHelper & AssetHelper, flairApi: F
           st.select(st.id := id(field), name := field.name, cls := "form-control")(
             current.map(f => option(value := f, selected := ""))
           ),
-          img(src := current.fold(Url(""))(formHelper.flairSrc(_)))
+          img(src := current.fold(Path(""))(formHelper.flairSrc(_)))
         ),
         div(
           cls := "flair-picker none",
